@@ -1,0 +1,43 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# ForestFinal - Triad of Quality Mandate
+
+## I. Clarity & Simplicity (Explainable Code Standard)
+As you review or generate code for ForestFinal, ensure it strictly adheres to:
+1.  **Self-Documenting Names:** All identifiers (variables, functions, classes, modules) must clearly reveal their purpose and usage. Avoid abbreviations or vague names. (Example: Use `user_goal_text` not `ugt` or `data`).
+2.  **Single Responsibility (SRP):** Each function, method, and class must have one, well-defined primary responsibility. If a component does too much, advise on how to decompose it.
+3.  **Conciseness & Readability:**
+    * Functions/methods should ideally be under 30-50 lines. Flag longer ones for potential refactoring.
+    * Nesting depth should not exceed 2-3 levels. Flag deeper nesting.
+    * No "magic numbers" or unexplained string literals. Mandate use of constants from `forest_app/config/constants.py` or well-named local constants.
+4.  **Minimal Complexity (KISS):** Prioritize the simplest, most direct solution. Question overly complex logic or algorithms; suggest simpler alternatives if available.
+5.  **Clear Control Flow:** Logic must be easy to follow. Avoid convoluted conditionals or deep loops.
+6.  **Purposeful Commenting:** Comments must explain *why* (intent, non-obvious decisions), not *what* (code should be self-explanatory). Avoid redundant comments.
+7.  **Strict PEP 8 Adherence:** All Python code must conform to PEP 8, enforced by Black/Flake8. (Your project structure indicates this is desired).
+
+## II. Robustness & Correctness (Proven Behavior Standard)
+As you review or generate code for ForestFinal, ensure it strictly adheres to:
+1.  **Testability & Test Coverage:**
+    * All new non-trivial logic in functions/methods/classes MUST be accompanied by unit tests covering positive, negative, and edge cases. Prompt for these test cases if missing.
+    * Integration points between services/modules should have corresponding integration tests.
+    * All tests (existing and new) must pass before code is considered complete.
+2.  **Explicit Error Handling:** All potential errors (API failures, DB issues, I/O errors, validation errors, `None` values where objects are expected) must be explicitly caught and handled gracefully (e.g., logged with context, user-friendly error reported, appropriate fallback). Identify and flag unhandled exceptions.
+3.  **Input Validation:** All external inputs (API payloads, user-submitted data) must be rigorously validated (e.g., using Pydantic models in FastAPI routers like in `forest_app/routers/onboarding.py`).
+4.  **Resource Management:** Ensure proper management of resources like database sessions (e.g., using `Depends` with `get_db` from `forest_app/persistence/database.py`) and file handles (using `with` statements).
+
+## III. Maintainability & Extensibility (Future-Friendly Code Standard)
+As you review or generate code for ForestFinal, ensure it strictly adheres to:
+1.  **Modularity & Decoupling:**
+    * Code must be organized into logical modules (e.g., services in `forest_app/core/services/`, persistence in `forest_app/persistence/`) with clear, minimal interfaces.
+    * Minimize direct dependencies between concrete classes; prefer dependency injection (e.g., FastAPI `Depends`, `forest_app/containers.py`) and programming to interfaces/protocols (from `forest_app/core/protocols.py`).
+2.  **No Hardcoding:** Configuration values, API URLs, thresholds, or frequently changing literals must be defined in `forest_app/config/settings.py` or `forest_app/config/constants.py`.
+3.  **DRY (Don't Repeat Yourself):** Identify and flag duplicated code logic. Suggest refactoring into reusable functions, methods, or classes (e.g., in `forest_app/core/utils.py`).
+4.  **YAGNI (You Aren't Gonna Need It):** Challenge any code or abstraction that doesn't solve a current, explicit requirement. Avoid premature generalization.
+5.  **Clean Code Context:** Encourage leaving code cleaner than found. If modifying a section, prompt for small, related refactorings that improve the surrounding code's adherence to these Triad principles.
+
+**General Instruction for Cursor:**
+
+"When reviewing or generating code for the ForestFinal project, rigorously apply the 'ForestFinal - Triad of Quality Mandate' (Clarity & Simplicity, Robustness & Correctness, Maintainability & Extensibility). For any identified deviation, explain the issue and suggest specific, actionable improvements or test cases. Prioritize solutions that reduce technical debt and enhance long-term code health."

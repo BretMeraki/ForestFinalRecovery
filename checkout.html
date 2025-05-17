@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout</title>
+    <link rel="stylesheet" href="checkout.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="status-bar">
+        <div class="left-side">
+            <div class="time">9:41</div>
+        </div>
+        <div class="right-side">
+            <div class="mobile-signal"></div>
+            <div class="wifi"></div>
+            <div class="battery"></div>
+        </div>
+    </div>
+
+    <header class="header">
+        <button class="back-button">
+            <img src="chevron-left.svg" alt="Back">
+        </button>
+        <h1>Checkout</h1>
+    </header>
+
+    <main class="checkout-info">
+        <section class="shipping">
+            <h2>SHIPPING</h2>
+            <div class="info">
+                <span class="placeholder">Add shipping address</span>
+                <img src="chevron-right.svg" alt=">" class="chevron">
+            </div>
+        </section>
+
+        <section class="delivery">
+            <h2>DELIVERY</h2>
+            <div class="info">
+                <div class="text">
+                    <p class="primary">Free</p>
+                    <p class="secondary">Standard | 3-4 days</p>
+                </div>
+                <img src="chevron-right.svg" alt=">" class="chevron">
+            </div>
+        </section>
+
+        <section class="payment">
+            <h2>PAYMENT</h2>
+            <div class="info">
+                <span>Visa *1234</span>
+                <img src="chevron-right.svg" alt=">" class="chevron">
+            </div>
+        </section>
+
+        <section class="promos">
+            <h2>PROMOS</h2>
+            <div class="info">
+                <span class="placeholder">Apply promo code</span>
+                <img src="chevron-right.svg" alt=">" class="chevron">
+            </div>
+        </section>
+
+        <section class="items">
+            <div class="items-header">
+                <h2>ITEMS</h2>
+                <h2>DESCRIPTION</h2>
+                <h2 class="price-header">PRICE</h2>
+            </div>
+
+            <div class="item">
+                <div class="image"></div>
+                <div class="info">
+                    <span class="brand">Brand</span>
+                    <h3>Product name</h3>
+                    <p>Description</p>
+                    <p>Quantity: 01</p>
+                </div>
+                <span class="price">$10.99</span>
+            </div>
+
+            <div class="item">
+                <div class="image"></div>
+                <div class="info">
+                    <span class="brand">Brand</span>
+                    <h3>Product name</h3>
+                    <p>Description</p>
+                    <p>Quantity: 01</p>
+                </div>
+                <span class="price">$8.99</span>
+            </div>
+        </section>
+    </main>
+
+    <div class="text-summary">
+        <div class="subtotal">
+            <span>Subtotal (2)</span>
+            <span class="amount">$19.98</span>
+        </div>
+        <div class="shipping-total">
+            <span>Shipping total</span>
+            <span class="amount">Free</span>
+        </div>
+        <div class="taxes">
+            <span>Taxes</span>
+            <span class="amount">$2.00</span>
+        </div>
+        <div class="total">
+            <span>Total</span>
+            <span class="amount">$21.98</span>
+        </div>
+    </div>
+
+    <div class="bottom-button">
+        <button class="place-order">Place order</button>
+        <div class="home-indicator"></div>
+    </div>
+
+    <script src="checkout.js"></script>
+</body>
+</html> 

@@ -1,0 +1,32 @@
+[MASTER]
+# Use multiple processes to speed up Pylint.
+jobs=4
+
+# Only show warnings with the listed confidence levels.
+confidence=HIGH,CONTROL_FLOW,INFERENCE,INFERENCE_FAILURE,UNDEFINED
+
+[MESSAGES CONTROL]
+# Disable specific messages
+disable=raw-checker-failed,
+        bad-inline-option,
+        locally-disabled,
+        file-ignored,
+        suppressed-message,
+        useless-suppression,
+        deprecated-pragma,
+        use-symbolic-message-instead,
+        too-many-arguments,
+        too-many-locals,
+        too-many-statements,
+        too-many-branches
+
+[FORMAT]
+# Maximum number of characters on a single line.
+max-line-length=100
+
+[REPORTS]
+# Set the output format.
+output-format=text
+
+# The evaluation score will be given.
+evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
