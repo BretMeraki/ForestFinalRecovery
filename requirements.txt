@@ -8,7 +8,6 @@ python-multipart==0.0.20
 
 # Pydantic v1 for legacy compatibility
 pydantic==1.10.13  # Last stable version of v1
-pydantic-settings==2.1.0  # Required for settings management
 
 # Database ORM
 SQLAlchemy==1.4.50  # Last version before 2.0
