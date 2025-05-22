@@ -7,61 +7,87 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 # Import centralized error handling
-from forest_app.utils.error_handling import log_import_error
+try:
+    from forest_app.utils.error_handling import log_import_error
+except ImportError as e:
+    def log_import_error(error, module_name=None):
+        logging.error(f"Import error in {module_name or 'unknown module'}: {error}")
 
 # Core imports with error handling
 try:
     from forest_app.core.protocols import HTAServiceProtocol
-    from forest_app.core.services.semantic_base import \
-        SemanticMemoryManagerBase
-    from forest_app.core.snapshot import MemorySnapshot
-    from forest_app.integrations.llm import (DistilledReflectionResponse,
-                                             HTAEvolveResponse, LLMClient,
-                                             LLMError, LLMValidationError)
-    from forest_app.modules.hta_models import HTANodeModel
-    from forest_app.modules.hta_tree import HTANode, HTATree
-    from forest_app.modules.seed import Seed, SeedManager
 except ImportError as e:
-    log_import_error(e, "hta_service.py")
+    log_import_error(e, "hta_service.py:HTAServiceProtocol")
+    class HTAServiceProtocol:
+        pass
 
-    # Define dummy classes if imports fail
+try:
+    from forest_app.core.services.semantic_base import SemanticMemoryManagerBase
+except ImportError as e:
+    log_import_error(e, "hta_service.py:SemanticMemoryManagerBase")
+    class SemanticMemoryManagerBase:
+        pass
+
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    log_import_error(e, "hta_service.py:MemorySnapshot")
     class MemorySnapshot:
         pass
 
-    class HTATree:
-        pass
-
-    class HTANode:
-        pass
-
-    class SeedManager:
-        pass
-
-    class Seed:
-        pass
-
-    # Import centralized fallback implementation
-    from forest_app.integrations.llm_fallbacks import LLMClient
-
+try:
+    from forest_app.integrations.llm import (
+        DistilledReflectionResponse,
+        HTAEvolveResponse,
+        LLMClient,
+        LLMError,
+        LLMValidationError,
+    )
+except ImportError as e:
+    log_import_error(e, "hta_service.py:LLMClient")
+    try:
+        from forest_app.integrations.llm_fallbacks import LLMClient, LLMError, LLMValidationError
+    except ImportError:
+        class LLMClient:
+            pass
+        class LLMError(Exception):
+            pass
+        class LLMValidationError(Exception):
+            pass
     class HTAEvolveResponse:
         pass
-
     class DistilledReflectionResponse:
         pass
 
-    # Import centralized fallback error classes
-    from forest_app.integrations.llm_fallbacks import (LLMError,
-                                                       LLMValidationError)
-
+try:
+    from forest_app.modules.hta_models import HTANodeModel
+except ImportError as e:
+    log_import_error(e, "hta_service.py:HTANodeModel")
     class HTANodeModel:
         pass
 
+try:
+    from forest_app.modules.hta_tree import HTANode, HTATree
+except ImportError as e:
+    log_import_error(e, "hta_service.py:HTANode,HTATree")
+    class HTANode:
+        pass
+    class HTATree:
+        pass
+
+try:
+    from forest_app.modules.seed import Seed, SeedManager
+except ImportError as e:
+    log_import_error(e, "hta_service.py:Seed,SeedManager")
+    class Seed:
+        pass
+    class SeedManager:
+        pass
 
 # Feature flags with error handling
 try:
     from forest_app.core.feature_flags import Feature, is_enabled
 except ImportError:
-
     def is_enabled(feature):
         return True
 
@@ -264,7 +290,6 @@ class HTAService(HTAServiceProtocol):
             snapshot_save_ok = False  # Still try to save to seed
 
         # 2. Update Active Seed (Secondary, Source of Truth)
-        seed_save_ok = False
         active_seed = await self._get_active_seed(snapshot)
         if active_seed and hasattr(self.semantic_memory_manager, "update_seed"):
             try:
@@ -277,7 +302,6 @@ class HTAService(HTAServiceProtocol):
                         "Successfully updated HTA tree in active seed ID: %s",
                         active_seed.seed_id,
                     )
-                    seed_save_ok = True
                 else:
                     logger.error(
                         "SeedManager failed to update HTA tree for seed ID: %s",

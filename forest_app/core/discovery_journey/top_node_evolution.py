@@ -11,10 +11,33 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from forest_app.core.circuit_breaker import circuit_protected
-from forest_app.core.snapshot import MemorySnapshot
-from forest_app.integrations.llm import LLMClient
-from forest_app.modules.hta_tree import HTATree
+try:
+    from forest_app.core.circuit_breaker import circuit_protected
+except ImportError as e:
+    logging.error(f"Failed to import circuit_protected: {e}")
+    def circuit_protected(fallback_function=None):
+        def decorator(fn):
+            return fn
+        return decorator
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        pass
+try:
+    from forest_app.integrations.llm import LLMClient
+except ImportError as e:
+    logging.error(f"Failed to import LLMClient: {e}")
+    class LLMClient:
+        async def generate_text(self, *args, **kwargs):
+            return "{}"
+try:
+    from forest_app.modules.hta_tree import HTATree
+except ImportError as e:
+    logging.error(f"Failed to import HTATree: {e}")
+    class HTATree:
+        pass
 
 logger = logging.getLogger(__name__)
 

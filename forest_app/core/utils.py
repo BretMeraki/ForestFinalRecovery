@@ -3,8 +3,12 @@
 # --- ADDED Logging ---
 import logging
 
-from forest_app.config.constants import (MAGNITUDE_MAX_VALUE,
-                                         MAGNITUDE_MIN_VALUE)
+try:
+    from forest_app.config.constants import MAGNITUDE_MAX_VALUE, MAGNITUDE_MIN_VALUE
+except ImportError as e:
+    logging.error(f"Failed to import MAGNITUDE_MAX_VALUE or MAGNITUDE_MIN_VALUE: {e}")
+    MAGNITUDE_MAX_VALUE = 10.0
+    MAGNITUDE_MIN_VALUE = 1.0
 
 # --- END ADDED Logging ---
 

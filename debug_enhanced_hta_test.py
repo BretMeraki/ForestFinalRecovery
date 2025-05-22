@@ -18,8 +18,9 @@ except ImportError as e:
 
 # Import the test helpers
 try:
-    from forest_app.core.services.test_helpers.mock_enhanced_hta_service import \
-        get_mock_enhanced_hta_service
+    from forest_app.core.services.test_helpers.mock_enhanced_hta_service import (
+        get_mock_enhanced_hta_service,
+    )
 
     print("Successfully imported mock service")
 except ImportError as e:
@@ -114,8 +115,7 @@ async def run_test():
 
     # Try importing HTATreeRepository
     try:
-        from forest_app.persistence.hta_tree_repository import \
-            HTATreeRepository
+        from forest_app.persistence.hta_tree_repository import HTATreeRepository
 
         print("Successfully imported HTATreeRepository")
     except ImportError as e:
@@ -127,8 +127,7 @@ async def run_test():
 
     # Try importing SessionManager, HTAMemoryManager, and TaskQueue
     try:
-        from forest_app.core.services.enhanced_hta.memory import \
-            HTAMemoryManager
+        from forest_app.core.services.enhanced_hta.memory import HTAMemoryManager
         from forest_app.core.session_manager import SessionManager
         from forest_app.core.task_queue import TaskQueue
 

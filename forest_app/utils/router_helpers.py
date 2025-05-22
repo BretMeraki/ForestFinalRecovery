@@ -6,7 +6,8 @@ to reduce code duplication and ensure consistent error handling patterns.
 """
 
 import logging
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, Awaitable, cast
+import functools
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
@@ -124,3 +125,16 @@ def commit_and_refresh_db(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Database error during {action_description}",
         ) from db_err
+
+
+# --- Async router helper decorator ---
+def async_router_helper(fn: Callable[..., Any]) -> Callable[..., Any]:  # type: ignore[return]
+    @functools.wraps(fn)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:  # type: ignore[return]
+        try:
+            return await fn(*args, **kwargs)
+        except Exception as e:
+            logger = logging.getLogger(fn.__module__)
+            logger.error(f"Async error in router helper {fn.__name__}: {e}")
+            raise
+    return wrapper

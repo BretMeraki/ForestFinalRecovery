@@ -7,41 +7,35 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any, Dict, List  # Added Any for Dict type hints
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # --- Import Feature Flags ---
 # Assuming feature_flags.py is accessible from this module's path
 # Adjust the import path if necessary
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    # Provide fallbacks if feature flags aren't available
-    logger.warning(
-        "Feature flags module not found in development_index. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        DEVELOPMENT_INDEX = (
-            "FEATURE_ENABLE_DEVELOPMENT_INDEX"  # Define the specific flag used here
-        )
-
-    def is_enabled(
-        feature: Any,
-    ) -> bool:  # Dummy function - default to True or False based on desired fallback
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True  # Or False, depending on whether the feature should work if flags are broken
-
+Feature = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['Feature']).Feature,
+    lambda: type('Feature', (), {}),
+    logger,
+    "Feature"
+)
+is_enabled = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['is_enabled']).is_enabled,
+    lambda: (lambda *a, **k: False),
+    logger,
+    "is_enabled"
+)
 
 # --- Import Constants ---
-from forest_app.config.constants import (BASELINE_NUDGE_KEYS,
-                                         BASELINE_REFLECTION_NUDGE_AMOUNT,
-                                         DEFAULT_DEVELOPMENT_INDEX_VALUE,
-                                         DEVELOPMENT_INDEX_KEYS,
-                                         MAX_DEVELOPMENT_INDEX_VALUE,
-                                         MIN_DEVELOPMENT_INDEX_VALUE,
-                                         POSITIVE_REFLECTION_HINTS,
-                                         TASK_EFFECT_BASE_BOOST)
+from forest_app.config.constants import (
+    BASELINE_NUDGE_KEYS,
+    BASELINE_REFLECTION_NUDGE_AMOUNT,
+    DEFAULT_DEVELOPMENT_INDEX_VALUE,
+    DEVELOPMENT_INDEX_KEYS,
+    MAX_DEVELOPMENT_INDEX_VALUE,
+    MIN_DEVELOPMENT_INDEX_VALUE,
+    POSITIVE_REFLECTION_HINTS,
+    TASK_EFFECT_BASE_BOOST,
+)
 
 logger = logging.getLogger(__name__)
 # Consider setting level via central config, but INFO is reasonable for module-level logs

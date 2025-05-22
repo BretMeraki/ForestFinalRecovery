@@ -6,16 +6,30 @@ This script avoids test framework complexities and just verifies imports and bas
 import os
 import sys
 from unittest.mock import patch
+from forest_app.utils.import_fallbacks import import_with_fallback
+import logging
 
 # Add the project root to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 print("Attempting to import LLM service modules...")
+
+logger = logging.getLogger(__name__)
+
+llm_service_import = import_with_fallback(
+    lambda: __import__('forest_app.integrations.llm_service', fromlist=['LLMService', 'LLMError', 'LLMValidationError', 'LLMConfigurationError', 'LLMConnectionError']),
+    lambda: type('DummyLLMService', (), {}),
+    logger,
+    "llm_service_import"
+)
+
 try:
-    from forest_app.integrations.llm_service import (BaseLLMService,
-                                                     GoogleGeminiService,
-                                                     create_llm_service,
-                                                     get_llm_service)
+    from forest_app.integrations.llm_service import (
+        BaseLLMService,
+        GoogleGeminiService,
+        create_llm_service,
+        get_llm_service,
+    )
 
     print("✅ Successfully imported llm_service module")
 
@@ -23,8 +37,7 @@ try:
 
     print("✅ Successfully imported context_trimmer module")
 
-    from forest_app.integrations.prompt_augmentation import \
-        PromptAugmentationService
+    from forest_app.integrations.prompt_augmentation import PromptAugmentationService
 
     print("✅ Successfully imported prompt_augmentation module")
 

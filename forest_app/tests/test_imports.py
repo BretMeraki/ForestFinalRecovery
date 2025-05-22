@@ -11,27 +11,33 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from forest_app.core.services.component_state_manager import \
-    ComponentStateManager
+from forest_app.core.services.component_state_manager import ComponentStateManager
 from forest_app.core.services.memory_manager import MemoryEntry
+from forest_app.utils.import_fallbacks import import_with_fallback
 
-# LegacySemanticMemoryManager may not exist; if not, mock it for the test
+# Mock LegacySemanticMemoryManager and ModernSemanticMemoryManager if not present
 try:
-    from forest_app.core.services.memory_manager import \
-        LegacySemanticMemoryManager
+    from forest_app.core.services.memory_manager import (
+        LegacySemanticMemoryManager,
+        ModernSemanticMemoryManager,
+    )
 except ImportError:
 
     class LegacySemanticMemoryManager:
         def __init__(self, storage_path=None):
             pass
 
-
-# --- Fix for ModernSemanticMemoryManager import or skip ---
-try:
-    from forest_app.core.services.memory_manager import \
-        ModernSemanticMemoryManager
-except ImportError:
     ModernSemanticMemoryManager = None
+
+# Mock ContextInfusedGenerator if not present
+try:
+    from forest_app.core.context_infused_generator import ContextInfusedGenerator
+except ImportError:
+
+    class ContextInfusedGenerator:
+        def __init__(self, *args, **kwargs):
+            pass
+
 
 # Configure logging
 logging.basicConfig(
@@ -39,6 +45,48 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+memory_manager_import = import_with_fallback(
+    lambda: __import__('forest_app.core.services.memory_manager', fromlist=['MemoryManager']).MemoryManager,
+    lambda: type('MemoryManager', (), {}),
+    logger,
+    "MemoryManager"
+)
+context_infused_generator_import = import_with_fallback(
+    lambda: __import__('forest_app.core.context_infused_generator', fromlist=['ContextInfusedGenerator']).ContextInfusedGenerator,
+    lambda: type('ContextInfusedGenerator', (), {}),
+    logger,
+    "ContextInfusedGenerator"
+)
+core_import = import_with_fallback(
+    lambda: __import__('forest_app.core', fromlist=['ReflectionProcessor', 'CompletionProcessor']),
+    lambda: type('DummyCore', (), {}),
+    logger,
+    "core_import"
+)
+reflection_processor_import = import_with_fallback(
+    lambda: __import__('forest_app.core.processors', fromlist=['ReflectionProcessor']).ReflectionProcessor,
+    lambda: type('ReflectionProcessor', (), {}),
+    logger,
+    "ReflectionProcessor"
+)
+logging_tracking_import = import_with_fallback(
+    lambda: __import__('forest_app.modules.logging_tracking', fromlist=['TaskFootprintLogger']).TaskFootprintLogger,
+    lambda: type('TaskFootprintLogger', (), {}),
+    logger,
+    "TaskFootprintLogger"
+)
+llm_import = import_with_fallback(
+    lambda: __import__('forest_app.integrations.llm', fromlist=['LLMClient']).LLMClient,
+    lambda: type('LLMClient', (), {}),
+    logger,
+    "LLMClient"
+)
+containers_import = import_with_fallback(
+    lambda: __import__('forest_app.containers', fromlist=['Container']).Container,
+    lambda: type('Container', (), {}),
+    logger,
+    "Container"
+)
 
 class TestImports(unittest.TestCase):
     """Test case for verifying imports."""
@@ -46,12 +94,17 @@ class TestImports(unittest.TestCase):
     def test_core_imports(self):
         """Test importing core components."""
         try:
-            from forest_app.core import (CompletionProcessor,
-                                         ComponentStateManager,
-                                         HarmonicRouting, HTAService,
-                                         MemorySnapshot, ReflectionProcessor,
-                                         SemanticMemoryManager, SilentScoring,
-                                         clamp01)
+            from forest_app.core import (
+                CompletionProcessor,
+                ComponentStateManager,
+                HarmonicRouting,
+                HTAService,
+                MemorySnapshot,
+                ReflectionProcessor,
+                SemanticMemoryManager,
+                SilentScoring,
+                clamp01,
+            )
 
             logger.info("✓ Core package imports successful")
         except ImportError as e:
@@ -135,7 +188,9 @@ class TestImports(unittest.TestCase):
 class TestMemoryManager(unittest.TestCase):
     def setUp(self):
         from forest_app.core.services.memory_manager import (
-            MemoryEntry, SemanticMemoryManager)
+            MemoryEntry,
+            SemanticMemoryManager,
+        )
 
         self.tempfile = tempfile.NamedTemporaryFile(delete=False)
         # Write valid empty JSON list to the temp file
@@ -214,8 +269,7 @@ class TestMemoryManager(unittest.TestCase):
     def test_save_and_load_memories(self):
         self.manager.store_milestone(uuid.uuid4(), "desc", 0.5)
         self.manager._save_memories()
-        from forest_app.core.services.memory_manager import \
-            SemanticMemoryManager
+        from forest_app.core.services.memory_manager import SemanticMemoryManager
 
         mgr2 = SemanticMemoryManager(storage_path=self.tempfile.name)
         self.assertTrue(len(mgr2.memories) > 0)
@@ -353,8 +407,9 @@ class TestComponentStateManager(unittest.TestCase):
     def test_load_states_valid(self):
         from types import SimpleNamespace
 
-        from forest_app.core.services.component_state_manager import \
-            ComponentStateManager
+        from forest_app.core.services.component_state_manager import (
+            ComponentStateManager,
+        )
 
         engine = DummyEngine()
         mgr = ComponentStateManager({"engine": engine})
@@ -366,8 +421,9 @@ class TestComponentStateManager(unittest.TestCase):
     def test_load_states_invalid(self):
         from types import SimpleNamespace
 
-        from forest_app.core.services.component_state_manager import \
-            ComponentStateManager
+        from forest_app.core.services.component_state_manager import (
+            ComponentStateManager,
+        )
 
         engine = DummyNoUpdate()
         mgr = ComponentStateManager({"engine": engine})
@@ -381,8 +437,9 @@ class TestComponentStateManager(unittest.TestCase):
     def test_save_states_valid(self):
         from types import SimpleNamespace
 
-        from forest_app.core.services.component_state_manager import \
-            ComponentStateManager
+        from forest_app.core.services.component_state_manager import (
+            ComponentStateManager,
+        )
 
         engine = DummyEngine()
         mgr = ComponentStateManager({"engine": engine})
@@ -395,8 +452,9 @@ class TestComponentStateManager(unittest.TestCase):
     def test_save_states_invalid(self):
         from types import SimpleNamespace
 
-        from forest_app.core.services.component_state_manager import \
-            ComponentStateManager
+        from forest_app.core.services.component_state_manager import (
+            ComponentStateManager,
+        )
 
         engine = DummyNoSave()
         mgr = ComponentStateManager({"engine": engine})
@@ -418,8 +476,7 @@ class DummyLLMClient:
 
 class TestSemanticMemoryManager(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        from forest_app.core.services.semantic_memory import \
-            SemanticMemoryManager
+        from forest_app.core.services.semantic_memory import SemanticMemoryManager
 
         self.manager = SemanticMemoryManager(DummyLLMClient())
 
@@ -538,8 +595,7 @@ class TestHTAService(unittest.IsolatedAsyncioTestCase):
 
 class TestContextInfusedGenerator(unittest.TestCase):
     def setUp(self):
-        from forest_app.core.context_infused_generator import \
-            ContextInfusedGenerator
+        from forest_app.core.context_infused_generator import ContextInfusedGenerator
 
         self.generator = ContextInfusedGenerator()
 

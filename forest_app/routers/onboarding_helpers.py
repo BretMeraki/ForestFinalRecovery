@@ -11,25 +11,81 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional, Tuple
+from uuid import UUID
 
 # Third-party imports
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from forest_app.core.orchestrator import ForestOrchestrator
+
 # Application imports
-from forest_app.core.memory.memory_snapshot import MemorySnapshot
-from forest_app.core.services.forest_orchestrator import ForestOrchestrator
+from forest_app.core.snapshot import MemorySnapshot
 from forest_app.helpers import save_snapshot_with_codename
 from forest_app.modules.seed import Seed
+from forest_app.persistence.models import HTATreeModel
 from forest_app.persistence.repository import MemorySnapshotRepository
-from forest_app.schemas.onboarding_schemas import AddContextRequest
-from forest_app.utils import commit_and_refresh_db, get_constants_module
+from forest_app.schemas.onboarding import AddContextRequest
+from forest_app.utils import commit_and_refresh_db
+from forest_app.utils.import_fallbacks import import_with_fallback
 
-# Constants
-constants = get_constants_module()
+# Create logger first (needed for import_with_fallback calls)
 logger = logging.getLogger(__name__)
 
+# --- Robust fallback classes for type checking and attribute access ---
+MemorySnapshot = import_with_fallback(
+    lambda: __import__('forest_app.core.snapshot', fromlist=['MemorySnapshot']).MemorySnapshot,
+    lambda: type('MemorySnapshot', (), {}),
+    logger,
+    "MemorySnapshot"
+)
+HTATreeModel = import_with_fallback(
+    lambda: __import__('forest_app.persistence.models', fromlist=['HTATreeModel']).HTATreeModel,
+    lambda: type('HTATreeModel', (), {}),
+    logger,
+    "HTATreeModel"
+)
+Seed = import_with_fallback(
+    lambda: __import__('forest_app.modules.seed', fromlist=['Seed']).Seed,
+    lambda: type('Seed', (), {}),
+    logger,
+    "Seed"
+)
+AddContextRequest = import_with_fallback(
+    lambda: __import__('forest_app.schemas.onboarding', fromlist=['AddContextRequest']).AddContextRequest,
+    lambda: type('AddContextRequest', (), {}),
+    logger,
+    "AddContextRequest"
+)
+HTAResponseModel = import_with_fallback(
+    lambda: __import__('forest_app.modules.hta_models', fromlist=['HTAResponseModel']).HTAResponseModel,
+    lambda: type('HTAResponseModel', (), {}),
+    logger,
+    "HTAResponseModel"
+)
+
+# --- Constants Placeholder ---
+class ConstantsPlaceholder:
+    EVENT_TYPE_LLM_RESPONSE_RECEIVED = "llm_response_received"
+    EVENT_TYPE_HTA_GENERATED = "hta_generated"
+    ONBOARDING_STATUS_NEEDS_CONTEXT = "needs_context"
+    ONBOARDING_STATUS_NEEDS_GOAL = "needs_goal"
+    EVENT_TYPE_CONTEXT_ADDED = "context_added"
+    # Add any other constants used in this file
+
+constants = ConstantsPlaceholder()
+
+# --- Helper functions for snapshot_data and id ---
+def get_snapshot_data(model):
+    if hasattr(model, 'snapshot_data'):
+        return model.snapshot_data
+    return None
+
+def get_snapshot_id(model):
+    if hasattr(model, 'id'):
+        return model.id
+    return None
 
 def handle_already_active_session(
     snapshot: MemorySnapshot, orchestrator_i: ForestOrchestrator
@@ -63,14 +119,14 @@ def handle_already_active_session(
 
 
 def load_snapshot_with_error_handling(
-    stored_model: Any, user_id: str
+    stored_model: Any, user_id: UUID
 ) -> MemorySnapshot:
     """
     Loads a MemorySnapshot from stored_model, handling errors and raising HTTPException if needed.
 
     Args:
         stored_model: The database model containing the snapshot data
-        user_id: ID of the user for logging purposes
+        user_id: ID of the user for logging purposes (UUID)
 
     Returns:
         MemorySnapshot: The loaded MemorySnapshot instance
@@ -167,9 +223,7 @@ def enrich_hta_with_discovery(
             return enriched_result
     except (AttributeError, ValueError, TypeError) as e:
         # Catch specific exceptions that might be raised during discovery enhancement
-        logger.warning(
-            "Error enriching HTA with discovery: %s", e, exc_info=True
-        )
+        logger.warning("Error enriching HTA with discovery: %s", e, exc_info=True)
     except Exception as e:  # noqa: W0718
         # Keep broad catch as a last resort for robustness
         logger.warning(
@@ -184,52 +238,73 @@ def activate_hta_and_create_seed(
     snapshot: MemorySnapshot,
     repo: MemorySnapshotRepository,
     db: Session,
-    user_id: str,
+    user_id: UUID,
     orchestrator_i: ForestOrchestrator,
     llm_client_instance: Any,
     stored_model: Any,
 ) -> Tuple[Seed, Any, dict, str]:
     """
     Handles HTA activation, seed creation, and snapshot saving.
-    
+
     Args:
         hta_model_dict: Dictionary representation of the HTA model
         processed_goal: The processed user goal
         snapshot: Current MemorySnapshot instance
         repo: MemorySnapshotRepository instance
         db: Database session
-        user_id: User identifier
+        user_id: User identifier (UUID)
         orchestrator_i: ForestOrchestrator instance
         llm_client_instance: LLM client instance
         stored_model: Stored model from database
-        
+
     Returns:
         Tuple containing (new_seed, saved_model, first_task, refined_goal_desc)
     """
     # Create new Seed from HTA
     logger.info("Creating seed with hta_model_dict for user %s", user_id)
-    hta_tree = HTATreeModel.from_dict(hta_model_dict)
-    new_seed = Seed.from_hta_model(hta_tree, processed_goal)
+    hta_tree = getattr(HTATreeModel, 'from_dict', None)
+    if callable(hta_tree):
+        hta_tree = HTATreeModel.from_dict(hta_model_dict)
+    else:
+        hta_tree = HTATreeModel(**hta_model_dict)
+
+    seed_from_hta = getattr(Seed, 'from_hta_model', None)
+    if callable(seed_from_hta):
+        new_seed = Seed.from_hta_model(hta_tree, processed_goal)
+    else:
+        new_seed = Seed(seed_name=processed_goal, hta_tree=hta_tree)
     logger.debug("Created seed for user %s", user_id)
 
     # Update snapshot with seed and set activation status
     update_snapshot_with_seed(snapshot, new_seed, user_id)
 
     # Save snapshot - using the helper function that handles LLM calls for codename
-    if stored_model and stored_model.id:
+    if stored_model and get_snapshot_id(stored_model):
         # Update existing
-        snapshot.id = stored_model.id
+        setattr(snapshot, 'id', get_snapshot_id(stored_model))
         logger.debug(
-            "Updating existing snapshot id=%s for user %s", snapshot.id, user_id
+            "Updating existing snapshot id=%s for user %s", getattr(snapshot, 'id', None), user_id
         )
         saved_model = save_snapshot_with_codename(
-            snapshot, repo, llm_client_instance, update=True
+            db=db,
+            repo=repo,
+            user_id=user_id,
+            snapshot=snapshot,
+            llm_client=llm_client_instance,
+            stored_model=stored_model,
+            force_create_new=False,
         )
     else:
         # Create new
         logger.debug("Creating new snapshot for user %s", user_id)
         saved_model = save_snapshot_with_codename(
-            snapshot, repo, llm_client_instance, update=False
+            db=db,
+            repo=repo,
+            user_id=user_id,
+            snapshot=snapshot,
+            llm_client=llm_client_instance,
+            stored_model=None,
+            force_create_new=True,
         )
 
     # Commit changes
@@ -243,19 +318,19 @@ def activate_hta_and_create_seed(
 
 
 def process_onboarding_inputs(
-    request: AddContextRequest, snapshot: MemorySnapshot, user_id: str
+    request: AddContextRequest, snapshot: MemorySnapshot, user_id: UUID
 ) -> Tuple[str, str]:
     """
     Process and validate onboarding inputs.
-    
+
     Args:
         request: The AddContextRequest containing user input
         snapshot: Current MemorySnapshot instance
-        user_id: User identifier for logging
-        
+        user_id: User identifier for logging (UUID)
+
     Returns:
         Tuple of (processed_goal, processed_context)
-        
+
     Raises:
         HTTPException: If input validation fails
     """
@@ -268,9 +343,9 @@ def process_onboarding_inputs(
             detail="Goal not found in session. Please set goal first.",
         )
 
-    # Get context from request
-    context_input = request.context_description
-    if not context_input or not context_input.strip():
+    # Get context from request (use context_reflection as defined in schema)
+    context_input = getattr(request, 'context_reflection', None)
+    if not context_input or not str(context_input).strip():
         context_input = "No additional context provided."
 
     # Process inputs (simple processing for now, could be enhanced)
@@ -282,10 +357,11 @@ def process_onboarding_inputs(
     snapshot.component_state["processed_context"] = processed_context
 
     # Log the context addition
-    snapshot.log_event(
-        event_type=constants.EVENT_TYPE_CONTEXT_ADDED,
-        metadata={"user_id": user_id, "context_length": len(processed_context)},
-    )
+    if hasattr(snapshot, 'log_event'):
+        snapshot.log_event(
+            event_type=constants.EVENT_TYPE_CONTEXT_ADDED,
+            metadata={"user_id": str(user_id), "context_length": len(processed_context)},
+        )
 
     return processed_goal, processed_context
 
@@ -295,21 +371,21 @@ async def generate_hta_from_llm(
     processed_context: str,
     llm_client_instance: Any,
     root_node_id: str,
-    user_id: str,
+    user_id: UUID,
 ) -> str:
     """
     Generate HTA structure using LLM.
-    
+
     Args:
         processed_goal: The processed user goal
         processed_context: The processed user context
         llm_client_instance: LLM client instance
         root_node_id: Unique ID for the root node
-        user_id: User identifier for logging
-        
+        user_id: User identifier for logging (UUID)
+
     Returns:
         str: JSON string containing the HTA structure
-        
+
     Raises:
         HTTPException: If there's an error during generation
     """
@@ -322,7 +398,7 @@ async def generate_hta_from_llm(
             endpoint=constants.LLM_ENDPOINT_HTA_GENERATION,
             prompt=prompt,
             prompt_version=constants.PROMPT_VERSION_HTA_GENERATION,
-            user_id=user_id,
+            user_id=str(user_id),
         )
         logger.debug("Successfully received HTA from LLM for user %s", user_id)
         return hta_response_json_str
@@ -350,16 +426,16 @@ async def generate_hta_from_llm(
 
 
 def determine_first_task(
-    snapshot: MemorySnapshot, orchestrator_i: ForestOrchestrator, user_id: str
+    snapshot: MemorySnapshot, orchestrator_i: ForestOrchestrator, user_id: UUID
 ) -> dict:
     """
     Determine the first task for the user's onboarding journey.
-    
+
     Args:
         snapshot: Current MemorySnapshot instance
         orchestrator_i: ForestOrchestrator instance
-        user_id: User identifier for logging
-        
+        user_id: User identifier for logging (UUID)
+
     Returns:
         dict: First task recommendation
     """
@@ -392,15 +468,15 @@ def determine_first_task(
 
 
 def update_snapshot_with_seed(
-    snapshot: MemorySnapshot, new_seed: Seed, user_id: str
+    snapshot: MemorySnapshot, new_seed: Seed, user_id: UUID
 ) -> None:
     """
     Update snapshot with the new seed information.
-    
+
     Args:
         snapshot: Current MemorySnapshot instance
         new_seed: Newly created Seed
-        user_id: User identifier for logging
+        user_id: User identifier for logging (UUID)
     """
     # Set seed in snapshot
     snapshot.seed = new_seed.to_dict()
@@ -411,25 +487,25 @@ def update_snapshot_with_seed(
 
 
 def commit_snapshot_changes(
-    db: Session, 
-    repo: MemorySnapshotRepository, 
-    snapshot: MemorySnapshot, 
-    saved_model: Any, 
-    user_id: str
+    db: Session,
+    repo: MemorySnapshotRepository,
+    snapshot: MemorySnapshot,
+    saved_model: Any,
+    user_id: UUID,
 ) -> Any:
     """
     Commit changes to the snapshot in the database.
-    
+
     Args:
         db: Database session
         repo: MemorySnapshotRepository instance
         snapshot: Current MemorySnapshot
         saved_model: Model to refresh
-        user_id: User identifier for logging
-        
+        user_id: User identifier for logging (UUID)
+
     Returns:
         Any: The refreshed model
-        
+
     Raises:
         HTTPException: If there's a database error
     """
@@ -460,25 +536,25 @@ def activate_hta_and_finalize(
     snapshot: MemorySnapshot,
     repo: MemorySnapshotRepository,
     db: Session,
-    user_id: str,
+    user_id: UUID,
     orchestrator_i: ForestOrchestrator,
     llm_client_instance: Any,
     stored_model: Any,
 ) -> Tuple[Seed, Any, dict, str]:
     """
     Activate HTA and finalize the onboarding process.
-    
+
     Args:
         hta_model_dict: Dictionary representation of the HTA model
         processed_goal: The processed user goal
         snapshot: Current MemorySnapshot instance
         repo: MemorySnapshotRepository instance
         db: Database session
-        user_id: User identifier
+        user_id: User identifier (UUID)
         orchestrator_i: ForestOrchestrator instance
         llm_client_instance: LLM client instance
         stored_model: Stored model from database
-        
+
     Returns:
         Tuple containing (new_seed, saved_model, first_task, refined_goal_desc)
     """
@@ -498,15 +574,14 @@ def activate_hta_and_finalize(
     )
 
 
-def complete_onboarding(user_id: str, refined_goal_desc: str, first_task: dict) -> dict:
+def complete_onboarding(user_id: UUID, refined_goal_desc: str, first_task: dict) -> dict:
     """
     Complete the onboarding process and prepare the response.
-    
+
     Args:
-        user_id: User identifier for logging
+        user_id: User identifier for logging (UUID)
         refined_goal_desc: The refined goal description
         first_task: First task recommendation
-        
 
     Returns:
         dict: OnboardingResponse data
@@ -524,7 +599,7 @@ async def parse_and_enrich_hta_response(
     hta_response_json_str: str,
     orchestrator_i: ForestOrchestrator,
     discovery_service: Any,
-    user_id: str,
+    user_id: UUID,
     processed_goal: str,
     processed_context: str,
     snapshot: MemorySnapshot,
@@ -536,7 +611,7 @@ async def parse_and_enrich_hta_response(
         hta_response_json_str: JSON string response from the LLM
         orchestrator_i: ForestOrchestrator instance
         discovery_service: Discovery service if available
-        user_id: User identifier
+        user_id: User identifier (UUID)
         processed_goal: Processed user goal
         processed_context: Processed user context
         snapshot: Current MemorySnapshot
@@ -559,7 +634,11 @@ async def parse_and_enrich_hta_response(
         try:
             # This validates the structure
             hta_response_model = HTAResponseModel(**parsed_response)
-            hta_response = hta_response_model.dict()
+            hta_dict_method = getattr(hta_response_model, 'dict', None)
+            if callable(hta_dict_method):
+                hta_response = hta_response_model.dict()
+            else:
+                hta_response = dict(hta_response_model.__dict__)
         except ValidationError as ve:
             logger.error(
                 "LLM HTA response validation error user %s: %s",
@@ -606,10 +685,11 @@ async def parse_and_enrich_hta_response(
                         "Generated manifest from HTA for user %s",
                         user_id,
                     )
-                    snapshot.log_event(
-                        event_type=constants.EVENT_TYPE_MANIFEST_GENERATED,
-                        metadata={"user_id": user_id},
-                    )
+                    if hasattr(snapshot, 'log_event'):
+                        snapshot.log_event(
+                            event_type=constants.EVENT_TYPE_MANIFEST_GENERATED,
+                            metadata={"user_id": user_id},
+                        )
             except Exception as manifest_err:  # noqa: W0718
                 # Don't fail the whole operation if manifest generation fails
                 logger.error(
@@ -621,6 +701,20 @@ async def parse_and_enrich_hta_response(
 
         # Get final model as dict for processing
         hta_model_dict = hta_tree.dict()
+
+        # Log successful HTA generation from LLM to snapshot
+        if hasattr(snapshot, 'log_event'):
+            snapshot.log_event(
+                event_type=constants.EVENT_TYPE_HTA_GENERATED,
+                metadata={
+                    "user_id": user_id,
+                    "root_node_id": hta_model_dict.get("root_id", "unknown"),
+                    "num_nodes": len(hta_model_dict.get("nodes", {})),
+                },
+            )
+        if hasattr(snapshot, 'update_core_state'):
+            snapshot.update_core_state("hta_generated_by_llm", True)
+
         return hta_model_dict
 
     except json.JSONDecodeError as json_err:

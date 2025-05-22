@@ -2,30 +2,26 @@
 
 import logging
 from typing import Any, Dict, List, Optional
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # Import shared models to prevent circular imports
 
+# Create logger first
+logger = logging.getLogger(__name__)
+
 # --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("offering_reward_init")
-    logger.warning(
-        "Feature flags module not found in offering_reward. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        REWARDS = "FEATURE_ENABLE_REWARDS"  # Define the specific flag used here
-        # Include flags checked by dependencies if needed for fallback logic
-        DESIRE_ENGINE = "FEATURE_ENABLE_DESIRE_ENGINE"
-        FINANCIAL_READINESS = "FEATURE_ENABLE_FINANCIAL_READINESS"
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
+Feature = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['Feature']).Feature,
+    lambda: type('Feature', (), {}),
+    logger,
+    "Feature"
+)
+is_enabled = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['is_enabled']).is_enabled,
+    lambda: (lambda *a, **k: False),
+    logger,
+    "is_enabled"
+)
 
 # --- Pydantic Import ---
 try:
@@ -50,38 +46,28 @@ except ImportError:
 
 # --- Module & LLM Imports ---
 # Assume these might fail if related features are off or imports broken
-try:
-    from forest_app.modules.desire_engine import DesireEngine
-
-    desire_engine_import_ok = True
-except ImportError:
-    logging.getLogger("offering_reward_init").warning("Could not import DesireEngine.")
-    desire_engine_import_ok = False
-
-    class DesireEngine:  # Dummy
-        def get_top_desires(self, cache, top_n):
-            return ["Default Desire"]
-
-
-try:
-    from forest_app.modules.financial_readiness import FinancialReadinessEngine
-
-    financial_engine_import_ok = True
-except ImportError:
-    logging.getLogger("offering_reward_init").warning(
-        "Could not import FinancialReadinessEngine."
-    )
-    financial_engine_import_ok = False
-
-    class FinancialReadinessEngine:  # Dummy
-        readiness = 0.5  # Default dummy value
-
+DesireEngine = import_with_fallback(
+    lambda: __import__('forest_app.modules.desire_engine', fromlist=['DesireEngine']).DesireEngine,
+    lambda: type('DesireEngine', (), {}),
+    logger,
+    "DesireEngine"
+)
+FinancialReadinessEngine = import_with_fallback(
+    lambda: __import__('forest_app.modules.financial_readiness', fromlist=['FinancialReadinessEngine']).FinancialReadinessEngine,
+    lambda: type('FinancialReadinessEngine', (), {}),
+    logger,
+    "FinancialReadinessEngine"
+)
 
 try:
     # First try to import from the real implementation
-    from forest_app.integrations.llm import (LLMClient, LLMConfigurationError,
-                                             LLMConnectionError, LLMError,
-                                             LLMValidationError)
+    from forest_app.integrations.llm import (
+        LLMClient,
+        LLMConfigurationError,
+        LLMConnectionError,
+        LLMError,
+        LLMValidationError,
+    )
 
     llm_import_ok = True
 except ImportError as e:
@@ -91,10 +77,6 @@ except ImportError as e:
     llm_import_ok = False
 
     # Import centralized fallback implementations
-
-
-logger = logging.getLogger(__name__)
-# Rely on global config for level
 
 # --- Define Response Models ---
 # Only define if Pydantic import was successful

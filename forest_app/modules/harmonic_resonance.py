@@ -30,21 +30,23 @@ except ImportError:
 
 # --- Import Constants ---
 try:
-    from forest_app.config.constants import (DEFAULT_SCORE_PRECISION,
-                                             DEFAULT_SNAPSHOT_CAPACITY,
-                                             DEFAULT_SNAPSHOT_MAGNITUDE,
-                                             DEFAULT_SNAPSHOT_SHADOW,
-                                             MAGNITUDE_MAX_VALUE,
-                                             MAGNITUDE_MIN_VALUE,
-                                             MAX_RESONANCE_SCORE,
-                                             MAX_SHADOW_SCORE,
-                                             MIN_RESONANCE_SCORE,
-                                             RESONANCE_THRESHOLD_REFLECTION,
-                                             RESONANCE_THRESHOLD_RENEWAL,
-                                             RESONANCE_THRESHOLD_RESILIENCE,
-                                             RESONANCE_WEIGHT_CAPACITY,
-                                             RESONANCE_WEIGHT_MAGNITUDE,
-                                             RESONANCE_WEIGHT_SHADOW)
+    from forest_app.config.constants import (
+        DEFAULT_SCORE_PRECISION,
+        DEFAULT_SNAPSHOT_CAPACITY,
+        DEFAULT_SNAPSHOT_MAGNITUDE,
+        DEFAULT_SNAPSHOT_SHADOW,
+        MAGNITUDE_MAX_VALUE,
+        MAGNITUDE_MIN_VALUE,
+        MAX_RESONANCE_SCORE,
+        MAX_SHADOW_SCORE,
+        MIN_RESONANCE_SCORE,
+        RESONANCE_THRESHOLD_REFLECTION,
+        RESONANCE_THRESHOLD_RENEWAL,
+        RESONANCE_THRESHOLD_RESILIENCE,
+        RESONANCE_WEIGHT_CAPACITY,
+        RESONANCE_WEIGHT_MAGNITUDE,
+        RESONANCE_WEIGHT_SHADOW,
+    )
 except ImportError:
     # Fallback constants if import fails (adjust values as needed)
     logging.getLogger("hr_engine_init").critical(

@@ -3,17 +3,25 @@
 import logging
 from datetime import timedelta
 from typing import Optional  # Added Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+
 # --- Pydantic Imports ---
 from pydantic import BaseModel, EmailStr, Field  # Import base pydantic needs
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from forest_app.core.auth.security_utils import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, get_password_hash, verify_password, authenticate_user
-from forest_app.database.session import get_db
+from forest_app.core.security import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    create_access_token,
+    get_password_hash,
+    verify_password,
+)
+from forest_app.persistence.database import get_db
 from forest_app.persistence.repository import create_user, get_user_by_email
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # --- REMOVED INCORRECT IMPORT ---
 # from forest_app.core.pydantic_models import Token, UserCreate, UserRead # Assuming models are moved/centralized
@@ -49,7 +57,7 @@ class UserCreate(UserBase):
 
 
 class UserRead(UserBase):
-    id: int
+    id: UUID
     is_active: bool
     onboarding_status: Optional[str] = None
 
@@ -68,7 +76,7 @@ async def login_for_access_token(
     logger.debug("Login attempt for email: %s", form_data.username)
     try:
         user = get_user_by_email(db, email=form_data.username)
-        if not user or not verify_password(form_data.password, user.hashed_password):
+        if not user or not verify_password(form_data.password, get_user_hashed_password(user)):
             logger.warning(
                 "Login failed for email %s: Incorrect email or password.",
                 form_data.username,
@@ -78,17 +86,17 @@ async def login_for_access_token(
                 detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        if hasattr(user, "is_active") and not user.is_active:
-            logger.warning("Login failed for email %s: User is inactive.", user.email)
+        if get_user_is_active(user) is False:
+            logger.warning("Login failed for email %s: User is inactive.", get_user_email(user))
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
             )
 
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
-            data={"sub": user.email}, expires_delta=access_token_expires
+            data={"sub": get_user_email(user)}, expires_delta=access_token_expires
         )
-        logger.info("User %s logged in successfully.", user.email)
+        logger.info("User %s logged in successfully.", get_user_email(user))
         return Token(access_token=access_token, token_type="bearer")
 
     except HTTPException:
@@ -166,7 +174,7 @@ async def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
         logger.info(
             "User %s registered successfully (ID: %s). Preparing response.",
-            created_user.email,
+            get_user_email(created_user),
             getattr(created_user, "id", "Pending"),
         )
         response_data = UserRead.model_validate(
@@ -204,3 +212,30 @@ async def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during registration.",
         )
+
+
+# --- Ensure UserModel attribute access is correct ---
+# If current_user is a SQLAlchemy model, access attributes directly
+# Add fallback for NoneType or missing attributes
+
+def get_user_email(user):
+    if hasattr(user, 'email'):
+        return user.email
+    return None
+
+def get_user_hashed_password(user):
+    if hasattr(user, 'hashed_password'):
+        return user.hashed_password
+    return None
+
+def get_user_is_active(user):
+    if hasattr(user, 'is_active'):
+        return user.is_active
+    return False
+
+constants = import_with_fallback(
+    lambda: __import__('forest_app.config', fromlist=['constants']).constants,
+    lambda: {},
+    logger,
+    "constants"
+)

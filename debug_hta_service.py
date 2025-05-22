@@ -12,8 +12,7 @@ async def main():
 
     # Import components with error handling
     try:
-        from forest_app.core.services.enhanced_hta.core import \
-            EnhancedHTAService
+        from forest_app.core.services.enhanced_hta.core import EnhancedHTAService
 
         print("✓ Successfully imported EnhancedHTAService")
     except Exception as e:
@@ -82,8 +81,7 @@ async def main():
     # Mock all necessary components
     try:
         # Set up SessionManager
-        from forest_app.core.services.enhanced_hta.memory import \
-            HTAMemoryManager
+        from forest_app.core.services.enhanced_hta.memory import HTAMemoryManager
         from forest_app.core.session_manager import SessionManager
 
         print("Mocking SessionManager and HTAMemoryManager...")
@@ -94,7 +92,7 @@ async def main():
         mock_session_manager.session = MagicMock(return_value=mock_session_manager)
 
         # Patch the SessionManager.get_instance class method
-        original_session_get_instance = getattr(SessionManager, "get_instance", None)
+        getattr(SessionManager, "get_instance", None)
         SessionManager.get_instance = classmethod(lambda cls: mock_session_manager)
         print("✓ Successfully mocked SessionManager.get_instance")
 
@@ -113,7 +111,7 @@ async def main():
         mock_task_queue.add_task = AsyncMock()
 
         # Patch the TaskQueue.get_instance class method
-        original_task_get_instance = getattr(TaskQueue, "get_instance", None)
+        getattr(TaskQueue, "get_instance", None)
         TaskQueue.get_instance = classmethod(lambda cls: mock_task_queue)
         print("✓ Successfully mocked TaskQueue.get_instance")
 

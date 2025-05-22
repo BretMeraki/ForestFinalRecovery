@@ -7,13 +7,17 @@ from datetime import datetime
 from typing import Any, Dict, Optional  # Added Callable
 
 import graphviz
-import streamlit as st
+
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
 from forest_app.front_end.api_client import call_forest_api  # <<< Correct path
-from forest_app.front_end.auth_ui import \
-    display_auth_sidebar  # <<< Correct path
-from forest_app.front_end.onboarding_ui import \
-    display_onboarding_input  # <<< Correct path
+from forest_app.front_end.auth_ui import display_auth_sidebar  # <<< Correct path
+from forest_app.front_end.onboarding_ui import (
+    display_onboarding_input,
+)  # <<< Correct path
 
 # --- Add project root to sys.path ---
 # Get the directory containing this script (streamlit_app.py, which is the project root)

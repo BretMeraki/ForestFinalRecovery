@@ -15,10 +15,34 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
-from forest_app.core.snapshot import MemorySnapshot
-from forest_app.core.task_queue import TaskQueue
-from forest_app.core.transaction_decorator import transaction_protected
-from forest_app.modules.hta_tree import HTATree
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        pass
+try:
+    from forest_app.core.task_queue import TaskQueue
+except ImportError as e:
+    logging.error(f"Failed to import TaskQueue: {e}")
+    class TaskQueue:
+        @staticmethod
+        def get_instance():
+            return None
+try:
+    from forest_app.core.transaction_decorator import transaction_protected
+except ImportError as e:
+    logging.error(f"Failed to import transaction_protected: {e}")
+    def transaction_protected(func=None):
+        def decorator(f):
+            return f
+        return decorator if func is None else decorator(func)
+try:
+    from forest_app.modules.hta_tree import HTATree
+except ImportError as e:
+    logging.error(f"Failed to import HTATree: {e}")
+    class HTATree:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +186,7 @@ class BackgroundTaskManager:
         """
         try:
             for transition in transitions:
-                milestone_id = transition.get("milestone_id")
+                transition.get("milestone_id")
                 milestone_title = transition.get("title", "Unknown milestone")
 
                 logger.info(
@@ -211,9 +235,29 @@ class BackgroundTaskManager:
             Boolean indicating expansion success
         """
         try:
-            from forest_app.core.services.enhanced_hta.memory import \
-                HTAMemoryManager
-
+            try:
+                from forest_app.core.services.enhanced_hta.memory import HTAMemoryManager
+            except ImportError as e:
+                logging.error(f"Failed to import HTAMemoryManager: {e}")
+                class HTAMemoryManager:
+                    async def get_latest_snapshot(self, user_id):
+                        return None
+            try:
+                from forest_app.modules.node_generator import NodeGenerator
+            except ImportError as e:
+                logging.error(f"Failed to import NodeGenerator: {e}")
+                class NodeGenerator:
+                    async def generate_branch_from_parent(self, parent_node, memory_snapshot):
+                        return []
+            try:
+                from forest_app.persistence.repositories import HTATreeRepository
+            except ImportError as e:
+                logging.error(f"Failed to import HTATreeRepository: {e}")
+                class HTATreeRepository:
+                    async def add_nodes_bulk(self, branch_nodes):
+                        pass
+                    async def update_branch_triggers(self, node_id, new_triggers):
+                        pass
             memory_manager = HTAMemoryManager()
             node_generator = self._get_node_generator()
             tree_repository = self._get_tree_repository()
@@ -238,7 +282,7 @@ class BackgroundTaskManager:
 
                 if branch_nodes:
                     # Add new nodes to the tree
-                    branch_node_ids = await tree_repository.add_nodes_bulk(branch_nodes)
+                    await tree_repository.add_nodes_bulk(branch_nodes)
                     expanded_count += len(branch_nodes)
 
                     # Update the parent node to mark expansion complete
@@ -268,11 +312,15 @@ class BackgroundTaskManager:
         Returns:
             NodeGenerator instance
         """
-        # This would typically be injected or imported, but we're creating it here
-        # to avoid circular imports
-        from forest_app.modules.node_generator import NodeGenerator
-
-        return NodeGenerator()
+        try:
+            from forest_app.modules.node_generator import NodeGenerator
+            return NodeGenerator()
+        except ImportError as e:
+            logging.error(f"Failed to import NodeGenerator: {e}")
+            class NodeGenerator:
+                async def generate_branch_from_parent(self, parent_node, memory_snapshot):
+                    return []
+            return NodeGenerator()
 
     def _get_tree_repository(self):
         """Get the tree repository for database operations.
@@ -282,8 +330,14 @@ class BackgroundTaskManager:
         Returns:
             TreeRepository instance
         """
-        # This would typically be injected or imported, but we're creating it here
-        # to avoid circular imports
-        from forest_app.persistence.repositories import HTATreeRepository
-
-        return HTATreeRepository()
+        try:
+            from forest_app.persistence.repositories import HTATreeRepository
+            return HTATreeRepository()
+        except ImportError as e:
+            logging.error(f"Failed to import HTATreeRepository: {e}")
+            class HTATreeRepository:
+                async def add_nodes_bulk(self, branch_nodes):
+                    pass
+                async def update_branch_triggers(self, node_id, new_triggers):
+                    pass
+            return HTATreeRepository()

@@ -23,26 +23,22 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-from forest_app.core.circuit_breaker import (CircuitBreaker,
-                                             CircuitBreakerConfig)
-from forest_app.core.context_infused_generator import \
-    ContextInfusedNodeGenerator
+from forest_app.core.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+from forest_app.core.context_infused_generator import ContextInfusedNodeGenerator
 from forest_app.core.event_bus import EventData, EventType
 from forest_app.core.roadmap_models import RoadmapManifest
-from forest_app.core.services.enhanced_hta.background import \
-    BackgroundTaskManager
+from forest_app.core.services.enhanced_hta.background import BackgroundTaskManager
 from forest_app.core.services.enhanced_hta.events import EventManager
 from forest_app.core.services.enhanced_hta.memory import HTAMemoryManager
-from forest_app.core.services.enhanced_hta.reinforcement import \
-    ReinforcementManager
+from forest_app.core.services.enhanced_hta.reinforcement import ReinforcementManager
 from forest_app.core.services.enhanced_hta.utils import format_uuid
 from forest_app.core.services.hta_service import HTAService
 from forest_app.core.snapshot import MemorySnapshot
 from forest_app.core.transaction_decorator import transaction_protected
 from forest_app.integrations.llm import LLMError, LLMValidationError
+from forest_app.models import HTATreeModel
 from forest_app.modules.hta_tree import HTATree
 from forest_app.persistence.hta_tree_repository import HTATreeRepository
-from forest_app.models import HTATreeModel
 
 # Import framework components
 
@@ -285,7 +281,7 @@ class EnhancedHTAService(HTAService):
                 )
 
         # Generate positive reinforcement message using the reinforcement manager
-        reinforcement = await self.reinforcement_manager.generate_reinforcement(node)
+        await self.reinforcement_manager.generate_reinforcement(node)
 
         # Publish completion event using the event manager
         await self.event_manager.publish_event(

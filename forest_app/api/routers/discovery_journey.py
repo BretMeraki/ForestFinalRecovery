@@ -13,8 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from forest_app.api.dependencies import get_current_user
-from forest_app.core.integrations.discovery_integration import \
-    get_discovery_journey_service
+from forest_app.core.integrations.discovery_integration import (
+    get_discovery_journey_service,
+)
 from forest_app.models.user import UserModel
 
 logger = logging.getLogger(__name__)

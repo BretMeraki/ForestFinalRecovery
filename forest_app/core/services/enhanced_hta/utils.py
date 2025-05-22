@@ -16,8 +16,17 @@ import logging
 import time
 from datetime import datetime, timezone
 from functools import wraps
-from typing import (Any, Callable, Dict, Generic, Optional, Protocol, TypeVar,
-                    Union, runtime_checkable)
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Optional,
+    Protocol,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 from uuid import UUID
 
 logger = logging.getLogger(__name__)

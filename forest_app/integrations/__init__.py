@@ -13,33 +13,39 @@ Import strategy:
 """
 
 # Import all centralized fallbacks first, so they're available if needed
-from forest_app.integrations.llm_fallbacks import \
-    LLMClient as FallbackLLMClient
+from forest_app.integrations.llm_fallbacks import LLMClient as FallbackLLMClient
 from forest_app.integrations.llm_fallbacks import LLMError as FallbackLLMError
-from forest_app.integrations.llm_fallbacks import \
-    LLMValidationError as FallbackLLMValidationError
+from forest_app.integrations.llm_fallbacks import (
+    LLMValidationError as FallbackLLMValidationError,
+)
 from forest_app.integrations.llm_fallbacks import get_llm_fallbacks
-from forest_app.integrations.pydantic_fallbacks import \
-    BaseModel as FallbackBaseModel
+from forest_app.integrations.pydantic_fallbacks import BaseModel as FallbackBaseModel
 from forest_app.integrations.pydantic_fallbacks import Field as FallbackField
-from forest_app.integrations.pydantic_fallbacks import \
-    ValidationError as FallbackValidationError
+from forest_app.integrations.pydantic_fallbacks import (
+    ValidationError as FallbackValidationError,
+)
 from forest_app.integrations.pydantic_fallbacks import get_pydantic_fallbacks
 
 # Try to import actual implementations
 try:
-    from forest_app.integrations.llm import (DistilledReflectionResponse,
-                                             HTAEvolveResponse, LLMClient,
-                                             LLMError, LLMResponseModel,
-                                             LLMValidationError,
-                                             generate_response)
-    from forest_app.integrations.llm_service import (BaseLLMService,
-                                                     GoogleGeminiService,
-                                                     LLMConfigError,
-                                                     LLMRequestError,
-                                                     LLMResponseError,
-                                                     LLMServiceError,
-                                                     create_llm_service)
+    from forest_app.integrations.llm import (
+        DistilledReflectionResponse,
+        HTAEvolveResponse,
+        LLMClient,
+        LLMError,
+        LLMResponseModel,
+        LLMValidationError,
+        generate_response,
+    )
+    from forest_app.integrations.llm_service import (
+        BaseLLMService,
+        GoogleGeminiService,
+        LLMConfigError,
+        LLMRequestError,
+        LLMResponseError,
+        LLMServiceError,
+        create_llm_service,
+    )
 except ImportError:
     # Fall back to using dummy implementations when real ones aren't available
     LLMClient = FallbackLLMClient

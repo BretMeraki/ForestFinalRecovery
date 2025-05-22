@@ -7,6 +7,9 @@
 # =============================================================================
 
 import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -14,23 +17,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 # Import shared models and types
 
 # --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("task_engine_init")
-    logger.warning(
-        "Feature flags module not found in task_engine. Feature flag checks will be disabled."
-    )
+from forest_app.utils.import_fallbacks import import_with_fallback, get_feature_flag_tools
 
-    class Feature:  # Dummy class
-        TASK_ENGINE = "FEATURE_ENABLE_TASK_ENGINE"
-
-    def is_enabled(feature: Any) -> bool:
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
+Feature, is_enabled = get_feature_flag_tools(logger)
 
 # --- Type hints for external dependencies ---
 if TYPE_CHECKING:
@@ -40,12 +29,10 @@ if TYPE_CHECKING:
 # --- Module Imports ---
 # Assume HTANode has attributes like id, title, description, children, priority, magnitude, etc.
 from forest_app.modules.hta_tree import (  # For type hinting and tree operations
-    HTANode, HTATree)
-from forest_app.modules.pattern_id import \
-    PatternIdentificationEngine  # For scoring
-
-# --- Logging ---
-logger = logging.getLogger(__name__)
+    HTANode,
+    HTATree,
+)
+from forest_app.modules.pattern_id import PatternIdentificationEngine  # For scoring
 
 # --- Constants ---
 DEFAULT_FALLBACK_TASK_MAGNITUDE = 3.0
@@ -355,7 +342,7 @@ class TaskEngine:
         candidates = []
         logger.debug(f"Filtering {len(flat_nodes)} flattened nodes...")
         for node in flat_nodes:
-            node_id = getattr(node, "id", "N/A")
+            getattr(node, "id", "N/A")
             status = getattr(node, "status", "pending")
             if status not in ["pending", "suggested"]:
                 continue

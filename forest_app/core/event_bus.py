@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Union
+from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
 
@@ -58,7 +59,7 @@ class EventData(BaseModel):
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
-    user_id: Optional[str] = None
+    user_id: Optional[UUID] = None
     payload: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
@@ -67,7 +68,7 @@ class EventData(BaseModel):
         json_encoders = {
             # Add custom encoders for non-JSON serializable types
             datetime: lambda dt: dt.isoformat(),
-            uuid.UUID: lambda id: str(id),
+            UUID: lambda id: str(id),
         }
 
     @validator("event_type", pre=True)
@@ -276,7 +277,7 @@ class EventBus:
     def get_recent_events(
         self,
         event_type: Optional[Union[str, EventType]] = None,
-        user_id: Optional[str] = None,
+        user_id: Optional[UUID] = None,
         limit: int = 50,
     ) -> List[EventData]:
         """
@@ -333,6 +334,11 @@ def publish_event(event_type: Union[str, EventType], include_result: bool = Fals
                         break
                 if not user_id and "user_id" in kwargs:
                     user_id = kwargs["user_id"]
+                if user_id is not None and not isinstance(user_id, UUID):
+                    try:
+                        user_id = UUID(str(user_id))
+                    except Exception:
+                        user_id = None
 
                 # Create event bus event
                 event_data = {

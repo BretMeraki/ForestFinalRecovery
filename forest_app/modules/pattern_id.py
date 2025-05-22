@@ -7,33 +7,30 @@ import logging
 import re
 from collections import Counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # Import shared models and types
 
+# Create logger first
+logger = logging.getLogger(__name__)
+
 # --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("pattern_id_init")
-    logger.warning(
-        "Feature flags module not found in pattern_id. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        PATTERN_ID = "FEATURE_ENABLE_PATTERN_ID"
-
-    def is_enabled(feature: Any) -> bool:
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
+Feature = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['Feature']).Feature,
+    lambda: type('Feature', (), {}),
+    logger,
+    "Feature"
+)
+is_enabled = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['is_enabled']).is_enabled,
+    lambda: (lambda *a, **k: False),
+    logger,
+    "is_enabled"
+)
 
 # --- Type hints for external dependencies ---
 if TYPE_CHECKING:
     from forest_app.modules.hta_tree import HTANode, HTATree
-
-logger = logging.getLogger(__name__)
 
 # --- Default Configuration ---
 DEFAULT_CONFIG = {

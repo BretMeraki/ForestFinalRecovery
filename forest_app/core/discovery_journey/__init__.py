@@ -16,6 +16,28 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+try:
+    from forest_app.core.event_bus import EventBus
+except ImportError as e:
+    logging.error(f"Failed to import EventBus: {e}")
+    class EventBus:
+        @staticmethod
+        def get_instance():
+            return None
+
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        pass
+
+try:
+    from forest_app.persistence.repository import MemorySnapshotRepository
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshotRepository: {e}")
+    class MemorySnapshotRepository:
+        pass
 
 class DiscoveryJourneyService:
     """
@@ -45,8 +67,6 @@ class DiscoveryJourneyService:
             event_bus: Optional event bus for event-driven architecture
             top_node_manager: Manager for top node evolution (ensuring semi-static nature)
         """
-        from forest_app.core.event_bus import EventBus
-
         self.hta_service = hta_service
         self.llm_client = llm_client
         self.event_bus = event_bus or EventBus.get_instance()
@@ -204,10 +224,6 @@ class DiscoveryJourneyService:
         """
         # Use the top node evolution manager if available
         if self.top_node_manager:
-            from forest_app.core.snapshot import MemorySnapshot
-            from forest_app.persistence.repository import \
-                MemorySnapshotRepository
-
             # This is a placeholder that would retrieve the actual snapshot in production
             snapshot = MemorySnapshot()
 

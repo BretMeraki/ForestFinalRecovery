@@ -13,8 +13,29 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from forest_app.core.roadmap_models import RoadmapManifest, RoadmapStep
-from forest_app.models import HTANodeModel
+try:
+    from forest_app.core.roadmap_models import RoadmapManifest, RoadmapStep
+except ImportError as e:
+    logging.error(f"Failed to import RoadmapManifest or RoadmapStep: {e}")
+    class RoadmapManifest:
+        def get_step_by_id(self, _):
+            return None
+        steps = []
+    class RoadmapStep:
+        hta_metadata = {}
+        status = "pending"
+        dependencies = []
+        id = None
+        priority = "low"
+        title = ""
+
+try:
+    from forest_app.models import HTANodeModel
+except ImportError as e:
+    logging.error(f"Failed to import HTANodeModel: {e}")
+    class HTANodeModel:
+        children = []
+        status = "pending"
 
 # Set up logger
 logger = logging.getLogger(__name__)

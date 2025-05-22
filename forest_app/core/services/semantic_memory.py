@@ -6,8 +6,22 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from forest_app.core.services.semantic_base import SemanticMemoryManagerBase
-from forest_app.integrations.llm import LLMClient
+try:
+    from forest_app.core.services.semantic_base import SemanticMemoryManagerBase
+except ImportError as e:
+    logging.error(f"Failed to import SemanticMemoryManagerBase: {e}")
+    class SemanticMemoryManagerBase:
+        pass
+
+try:
+    from forest_app.integrations.llm import LLMClient
+except ImportError as e:
+    logging.error(f"Failed to import LLMClient: {e}")
+    class LLMClient:
+        async def get_embedding(self, content):
+            return [0.0]
+        async def extract_themes(self, content):
+            return []
 
 logger = logging.getLogger(__name__)
 

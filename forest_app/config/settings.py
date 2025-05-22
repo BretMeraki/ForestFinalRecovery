@@ -5,8 +5,10 @@ import os
 import secrets
 from typing import Any, Dict, Optional
 
-from pydantic_settings import BaseSettings  # Correct import
-from pydantic_settings import SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,  # Correct import
+    SettingsConfigDict,
+)
 
 logger = logging.getLogger(__name__)
 

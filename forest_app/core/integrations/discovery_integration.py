@@ -14,8 +14,7 @@ from fastapi import Depends, FastAPI
 
 from forest_app.containers import Container
 from forest_app.core.discovery_journey import DiscoveryJourneyService
-from forest_app.core.discovery_journey.top_node_evolution import \
-    TopNodeEvolutionManager
+from forest_app.core.discovery_journey.top_node_evolution import TopNodeEvolutionManager
 from forest_app.core.event_bus import EventBus
 from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
 from forest_app.integrations.llm import LLMClient
@@ -105,7 +104,6 @@ async def _periodic_pattern_check_task(
         if hasattr(discovery_service, "hta_service") and hasattr(
             discovery_service.hta_service, "task_queue"
         ):
-            task_queue = discovery_service.hta_service.task_queue
 
             # Schedule next run in 12 hours
             # In a real implementation, would use a more robust scheduling system

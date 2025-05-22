@@ -8,11 +8,40 @@ injection of dependencies throughout the application.
 import logging
 from typing import Any, Dict, List, Optional, Protocol, TypeVar
 
-from dependency_injector import containers, providers
+try:
+    from dependency_injector import containers, providers
+except ImportError as e:
+    logging.error(f"Failed to import dependency_injector: {e}")
+    class containers:
+        class DeclarativeContainer:
+            pass
+        class WiringConfiguration:
+            def __init__(self, modules=None):
+                pass
+    class providers:
+        @staticmethod
+        def Singleton(*args, **kwargs):
+            return lambda *a, **k: None
+        @staticmethod
+        def Configuration(strict=False):
+            return None
+        @staticmethod
+        def Dict(d):
+            return d
 
-from forest_app.modules.types import SemanticMemoryProtocol
+try:
+    from forest_app.modules.types import SemanticMemoryProtocol
+except ImportError as e:
+    logging.error(f"Failed to import SemanticMemoryProtocol: {e}")
+    class SemanticMemoryProtocol:
+        pass
+
 # Import centralized error handling
-from forest_app.utils.error_handling import log_import_error
+try:
+    from forest_app.utils.error_handling import log_import_error
+except ImportError as e:
+    def log_import_error(error, module_name=None):
+        logging.error(f"Import error in {module_name or 'unknown module'}: {error}")
 
 
 # Protocol for semantic memory
@@ -206,13 +235,14 @@ except ImportError as e:
     LLM_IMPORT_OK = False
 
 try:
-    from forest_app.core.harmonic_framework import (HarmonicRouting,
-                                                    SilentScoring)
+    from forest_app.core.harmonic_framework import HarmonicRouting, SilentScoring
     from forest_app.core.orchestrator import ForestOrchestrator
-    from forest_app.core.processors import (CompletionProcessor,
-                                            ReflectionProcessor)
-    from forest_app.core.services import (ComponentStateManager, HTAService,
-                                          SemanticMemoryManager)
+    from forest_app.core.processors import CompletionProcessor, ReflectionProcessor
+    from forest_app.core.services import (
+        ComponentStateManager,
+        HTAService,
+        SemanticMemoryManager,
+    )
     from forest_app.modules.desire_engine import DesireEngine
     from forest_app.modules.emotional_integrity import EmotionalIntegrityIndex
     from forest_app.modules.financial_readiness import FinancialReadinessEngine
@@ -221,10 +251,12 @@ try:
     from forest_app.modules.narrative_modes import NarrativeModesEngine
     from forest_app.modules.offering_reward import OfferingRouter
     from forest_app.modules.pattern_id import PatternIdentificationEngine
-    from forest_app.modules.practical_consequence import \
-        PracticalConsequenceEngine
-    from forest_app.modules.relational import (Profile, RelationalManager,
-                                               RelationalRepairEngine)
+    from forest_app.modules.practical_consequence import PracticalConsequenceEngine
+    from forest_app.modules.relational import (
+        Profile,
+        RelationalManager,
+        RelationalRepairEngine,
+    )
     from forest_app.modules.seed import SeedManager
     from forest_app.modules.sentiment import SecretSauceSentimentEngineHybrid
     from forest_app.modules.snapshot_flow import SnapshotFlowController
@@ -340,8 +372,7 @@ except ImportError as e:
     MODULES_CORE_IMPORT_OK = False
 
 try:
-    from forest_app.core.processors import (CompletionProcessor,
-                                            ReflectionProcessor)
+    from forest_app.core.processors import CompletionProcessor, ReflectionProcessor
 
     PROCESSORS_IMPORT_OK = True
 except ImportError as e:

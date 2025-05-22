@@ -6,15 +6,19 @@ from enum import Enum as PyEnum
 from typing import Any, Dict, List, Optional  # Ensure basic types are imported
 
 # --- SQLAlchemy Imports ---
-from sqlalchemy import Boolean, DateTime
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, Column
 from sqlalchemy import Enum as SqlAlchemyEnum
-from sqlalchemy import ForeignKey, Index, String, Text
+
 # --- ADDED/MODIFIED IMPORT for PostgreSQL types ---
 from sqlalchemy.dialects.postgresql import (  # Import specifically for PostgreSQL
-    JSONB, UUID)
+    JSONB,
+    UUID,
+)
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
+
 # --- END ADDED/MODIFIED IMPORT ---
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func  # For server-side timestamp defaults
 from sqlalchemy.types import TEXT, TypeDecorator
 
@@ -52,8 +56,7 @@ class JSONType(TypeDecorator):
 
 
 # --- Base Class ---
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
 
 
 # --- Status Enum for HTA Nodes ---
@@ -71,68 +74,40 @@ class HTAStatus(str, PyEnum):
 class UserModel(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
-    )
-    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # --- Relationships ---
-    snapshots: Mapped[List["MemorySnapshotModel"]] = relationship(
-        "MemorySnapshotModel", back_populates="user", cascade="all, delete-orphan"
-    )
-    task_footprints: Mapped[List["TaskFootprintModel"]] = relationship(
-        "TaskFootprintModel", back_populates="user", cascade="all, delete-orphan"
-    )
-    reflection_logs: Mapped[List["ReflectionLogModel"]] = relationship(
-        "ReflectionLogModel", back_populates="user", cascade="all, delete-orphan"
-    )
-    hta_trees: Mapped[List["HTATreeModel"]] = relationship(
-        "HTATreeModel", back_populates="user", cascade="all, delete-orphan"
-    )
-    hta_nodes: Mapped[List["HTANodeModel"]] = relationship(
-        "HTANodeModel", back_populates="user", cascade="all, delete-orphan"
-    )
+    snapshots = relationship("MemorySnapshotModel", back_populates="user", cascade="all, delete-orphan")
+    task_footprints = relationship("TaskFootprintModel", back_populates="user", cascade="all, delete-orphan")
+    reflection_logs = relationship("ReflectionLogModel", back_populates="user", cascade="all, delete-orphan")
+    hta_trees = relationship("HTATreeModel", back_populates="user", cascade="all, delete-orphan")
+    hta_nodes = relationship("HTANodeModel", back_populates="user", cascade="all, delete-orphan")
 
 
 # --- HTA Tree Model ---
 class HTATreeModel(Base):
     __tablename__ = "hta_trees"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), index=True
-    )
-    goal_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    initial_context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    top_node_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("hta_nodes.id"), nullable=True
-    )
-    initial_roadmap_depth: Mapped[Optional[int]] = mapped_column(nullable=True)
-    initial_task_count: Mapped[Optional[int]] = mapped_column(nullable=True)
-    manifest: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONType, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    goal_name = Column(String(255), nullable=False)
+    initial_context = Column(Text, nullable=True)
+    top_node_id = Column(UUID(as_uuid=True), ForeignKey("hta_nodes.id"), nullable=True)
+    initial_roadmap_depth = Column(nullable=True)
+    initial_task_count = Column(nullable=True)
+    manifest = Column(JSONType, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # --- Relationships ---
-    user: Mapped["UserModel"] = relationship("UserModel", back_populates="hta_trees")
-    top_node: Mapped[Optional["HTANodeModel"]] = relationship(
-        "HTANodeModel", foreign_keys=[top_node_id]
-    )
-    nodes: Mapped[List["HTANodeModel"]] = relationship(
+    user = relationship("UserModel", back_populates="hta_trees")
+    top_node = relationship("HTANodeModel", foreign_keys=[top_node_id])
+    nodes = relationship(
         "HTANodeModel",
         primaryjoin="HTATreeModel.id == HTANodeModel.tree_id",
         back_populates="tree",
@@ -151,36 +126,22 @@ class HTATreeModel(Base):
 class HTANodeModel(Base):
     __tablename__ = "hta_nodes"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), index=True
-    )
-    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("hta_nodes.id"), nullable=True, index=True
-    )
-    tree_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("hta_trees.id"), index=True
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    is_leaf: Mapped[bool] = mapped_column(default=True)
-    status: Mapped[str] = mapped_column(
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("hta_nodes.id"), nullable=True, index=True)
+    tree_id = Column(UUID(as_uuid=True), ForeignKey("hta_trees.id"), index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    is_leaf = Column(Boolean, default=True)
+    status = Column(
         SqlAlchemyEnum("pending", "in_progress", "completed", name="hta_status_enum"),
         default="pending",
         index=True,
     )
-    roadmap_step_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
-    )
-    internal_task_details: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONType, nullable=True, default=lambda: {}
-    )
-    journey_summary: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONType, nullable=True, default=lambda: {}
-    )
-    branch_triggers: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    roadmap_step_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    internal_task_details = Column(JSONType, nullable=True, default=lambda: {})
+    journey_summary = Column(JSONType, nullable=True, default=lambda: {})
+    branch_triggers = Column(
         JSONType,
         nullable=True,
         default=lambda: {
@@ -189,25 +150,15 @@ class HTANodeModel(Base):
             "current_completion_count": 0,
         },
     )
-    is_major_phase: Mapped[bool] = mapped_column(default=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    is_major_phase = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # --- Relationships ---
-    user: Mapped["UserModel"] = relationship("UserModel", back_populates="hta_nodes")
-    tree: Mapped["HTATreeModel"] = relationship(
-        "HTATreeModel", back_populates="nodes", foreign_keys=[tree_id]
-    )
-    parent: Mapped[Optional["HTANodeModel"]] = relationship(
-        "HTANodeModel", remote_side=[id], back_populates="children"
-    )
-    children: Mapped[List["HTANodeModel"]] = relationship(
-        "HTANodeModel", back_populates="parent", cascade="all, delete-orphan"
-    )
+    user = relationship("UserModel", back_populates="hta_nodes")
+    tree = relationship("HTATreeModel", back_populates="nodes", foreign_keys=[tree_id])
+    parent = relationship("HTANodeModel", remote_side=[id], back_populates="children")
+    children = relationship("HTANodeModel", back_populates="parent", cascade="all, delete-orphan")
 
     # --- Create indexes for common query patterns ---
     __table_args__ = (
@@ -229,77 +180,43 @@ class HTANodeModel(Base):
 class MemorySnapshotModel(Base):
     __tablename__ = "memory_snapshots"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
-    )
-    snapshot_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONType, nullable=True
-    )
-    codename: Mapped[Optional[str]] = mapped_column(
-        String, nullable=True
-    )  # Added codename field
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    snapshot_data = Column(JSONType, nullable=True)
+    codename = Column(String, nullable=True)  # Added codename field
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # --- Relationships ---
-    user: Mapped["UserModel"] = relationship("UserModel", back_populates="snapshots")
+    user = relationship("UserModel", back_populates="snapshots")
 
 
 # --- Task Footprint Model ---
 class TaskFootprintModel(Base):
     __tablename__ = "task_footprints"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
-    )
-    task_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
-    event_type: Mapped[str] = mapped_column(
-        String, nullable=False
-    )  # e.g., 'issued', 'completed', 'failed', 'skipped'
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    snapshot_ref: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONType, nullable=True
-    )  # Optional snapshot context at time of event
-    event_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONType, nullable=True
-    )  # e.g., {"success": true/false, "reason": "..."}
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    task_id = Column(String, index=True, nullable=False)
+    event_type = Column(String, nullable=False)  # e.g., 'issued', 'completed', 'failed', 'skipped'
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    snapshot_ref = Column(JSONType, nullable=True)  # Optional snapshot context at time of event
+    event_metadata = Column(JSONType, nullable=True)  # e.g., {"success": true/false, "reason": "..."}
 
     # --- Relationships ---
-    user: Mapped["UserModel"] = relationship(
-        "UserModel", back_populates="task_footprints"
-    )
+    user = relationship("UserModel", back_populates="task_footprints")
 
 
 # --- Reflection Log Model ---
 class ReflectionLogModel(Base):
     __tablename__ = "reflection_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
-    )
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    reflection_text: Mapped[str] = mapped_column(
-        Text, nullable=False
-    )  # Use Text for potentially long reflections
-    snapshot_ref: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONType, nullable=True
-    )
-    analysis_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONType, nullable=True
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    reflection_text = Column(Text, nullable=False)  # Use Text for potentially long reflections
+    snapshot_ref = Column(JSONType, nullable=True)
+    analysis_metadata = Column(JSONType, nullable=True)
 
     # --- Relationships ---
-    user: Mapped["UserModel"] = relationship(
-        "UserModel", back_populates="reflection_logs"
-    )
+    user = relationship("UserModel", back_populates="reflection_logs")

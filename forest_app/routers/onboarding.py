@@ -8,36 +8,51 @@ Implements robust error handling, logging, and dependency injection for LLM-back
 # Standard library imports
 import logging
 import uuid
+from typing import Any, Dict, Optional
 
 # Third-party imports
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from forest_app.core.orchestrator import ForestOrchestrator
+
 # Application imports
-from forest_app.api.dependencies import (get_current_active_user, get_db,
-                                         get_orchestrator)
-from forest_app.core.memory.memory_snapshot import MemorySnapshot
-from forest_app.core.services.forest_orchestrator import ForestOrchestrator
-from forest_app.routers.onboarding_helpers import save_snapshot_with_codename
+from forest_app.core.security import get_current_active_user
+from forest_app.core.snapshot import MemorySnapshot
+from forest_app.dependencies import get_orchestrator
+from forest_app.helpers import save_snapshot_with_codename
+from forest_app.persistence.database import get_db
+from forest_app.persistence.models import UserModel
 from forest_app.persistence.repository import MemorySnapshotRepository
-from forest_app.schemas.onboarding_schemas import AddContextRequest
+
 # Import helper functions from onboarding_helpers module
 from forest_app.routers.onboarding_helpers import (
-    activate_hta_and_finalize, complete_onboarding, determine_first_task,
-    generate_hta_from_llm, handle_already_active_session,
-    load_snapshot_with_error_handling, parse_and_enrich_hta_response,
-    process_onboarding_inputs)
-# Import centralized schemas
-from forest_app.schemas.onboarding import (AddContextRequest,
-                                           OnboardingResponse, SetGoalRequest)
+    activate_hta_and_finalize,
+    complete_onboarding,
+    determine_first_task,
+    generate_hta_from_llm,
+    handle_already_active_session,
+    load_snapshot_with_error_handling,
+    parse_and_enrich_hta_response,
+    process_onboarding_inputs,
+)
+from forest_app.schemas.onboarding import (
+    AddContextRequest,
+    OnboardingResponse,
+    SetGoalRequest,
+)
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # Constants
 DISCOVERY_SERVICE_AVAILABLE = False
 
 # Conditionally import discovery service
 try:
-    from forest_app.core.integrations.discovery_integration import \
-        get_discovery_journey_service  # noqa: F401
+    from forest_app.core.integrations.discovery_integration import (
+        get_discovery_journey_service,
+    )  # noqa: F401
 
     DISCOVERY_SERVICE_AVAILABLE = True
 except (ImportError, AttributeError):
@@ -46,6 +61,12 @@ except (ImportError, AttributeError):
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+discovery_integration = import_with_fallback(
+    lambda: __import__('forest_app.core.integrations.discovery_integration', fromlist=['setup_discovery_journey']).setup_discovery_journey,
+    lambda: (lambda *a, **k: None),
+    logger,
+    "setup_discovery_journey"
+)
 
 # Pydantic models now imported from centralized schemas.onboarding module
 
@@ -85,9 +106,9 @@ async def start_onboarding(
         snapshot = MemorySnapshot()
 
         # Load existing snapshot if available
-        if stored_model and stored_model.snapshot_data:
+        if stored_model and get_snapshot_data(stored_model):
             try:
-                snapshot = MemorySnapshot.from_dict(stored_model.snapshot_data)
+                snapshot = MemorySnapshot.from_dict(get_snapshot_data(stored_model))
                 logger.debug(
                     "Successfully loaded existing snapshot for user %s", user_id
                 )
@@ -226,7 +247,7 @@ async def add_context_endpoint(
 
         repo = MemorySnapshotRepository(db)
         stored_model = repo.get_latest_snapshot(user_id)
-        if not stored_model or not stored_model.snapshot_data:
+        if not stored_model or not get_snapshot_data(stored_model):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Snapshot not found. Run /set_goal first.",
@@ -353,3 +374,28 @@ async def add_context_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error: {e}",
         ) from e
+
+
+class ConstantsPlaceholder:
+    ONBOARDING_STATUS_NEEDS_GOAL = "needs_goal"
+    ONBOARDING_STATUS_NEEDS_CONTEXT = "needs_context"
+    ONBOARDING_STATUS_COMPLETED = "completed"
+    EVENT_TYPE_CONTEXT_ADDED = "context_added"
+    LLM_ENDPOINT_HTA_GENERATION = "hta_generation"
+    PROMPT_VERSION_HTA_GENERATION = "v1"
+    EVENT_TYPE_MANIFEST_GENERATED = "manifest_generated"
+
+
+constants = ConstantsPlaceholder()
+
+# Helper functions for snapshot_data and id
+
+def get_snapshot_data(model):
+    if hasattr(model, 'snapshot_data'):
+        return model.snapshot_data
+    return None
+
+def get_snapshot_id(model):
+    if hasattr(model, 'id'):
+        return model.id
+    return None

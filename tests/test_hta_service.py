@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 # Import models and services
 from forest_app.core.roadmap_models import RoadmapManifest, RoadmapStep
-from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
+from forest_app.core.services.enhanced_hta.core import EnhancedHTAService
 from forest_app.persistence.models import HTATreeModel
 
 
@@ -25,8 +25,7 @@ class TestHTAService:
         from unittest.mock import AsyncMock, MagicMock
 
         from forest_app.core.roadmap_models import RoadmapManifest, RoadmapStep
-        from forest_app.core.services.enhanced_hta.core import \
-            EnhancedHTAService
+        from forest_app.core.services.enhanced_hta.core import EnhancedHTAService
 
         # Create minimal test data
         tree_id = uuid.uuid4()
@@ -254,8 +253,7 @@ class TestHTAService:
         from unittest.mock import AsyncMock, MagicMock
 
         from forest_app.core.roadmap_models import RoadmapManifest, RoadmapStep
-        from forest_app.core.services.enhanced_hta.core import \
-            EnhancedHTAService
+        from forest_app.core.services.enhanced_hta.core import EnhancedHTAService
 
         print("\n\n=== DIRECT DEBUG TEST ===")
 

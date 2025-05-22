@@ -2,9 +2,11 @@
 
 import pytest
 
-from forest_app.modules.offering_reward import (OfferingResponseModel,
-                                                OfferingRouter,
-                                                OfferingSuggestion)
+from forest_app.modules.offering_reward import (
+    OfferingResponseModel,
+    OfferingRouter,
+    OfferingSuggestion,
+)
 
 
 class MockDesireEngine:

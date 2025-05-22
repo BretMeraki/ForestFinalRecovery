@@ -9,28 +9,12 @@ import math
 import re
 from datetime import datetime, timezone  # Use timezone-aware UTC
 from typing import Any, Dict, Optional  # Added Optional
-
-# --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("shadow_init")
-    logger.warning(
-        "Feature flags module not found in shadow.py. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        SHADOW_ANALYSIS = "FEATURE_ENABLE_SHADOW_ANALYSIS"  # Define the specific flag
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
+from forest_app.utils.import_fallbacks import import_with_fallback, get_feature_flag_tools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+Feature, is_enabled = get_feature_flag_tools(logger)
 
 # --- Default output when feature is disabled ---
 DEFAULT_SHADOW_OUTPUT = {"shadow_score": 0.0, "shadow_tags": {}}

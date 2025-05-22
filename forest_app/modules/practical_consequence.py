@@ -3,32 +3,26 @@ from datetime import datetime, timezone  # Use timezone aware datetime
 from typing import Any, Dict, Optional
 
 import forest_app.utils
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # forest_app/modules/practical_consequence.py
 
-
-# --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("prac_consequence_init")
-    logger.warning(
-        "Feature flags module not found in practical_consequence. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        # Assuming this flag name, confirm or correct as needed
-        PRACTICAL_CONSEQUENCE = "FEATURE_ENABLE_PRACTICAL_CONSEQUENCE"
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)  # Or rely on global config
+
+# --- Import Feature Flags ---
+Feature = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['Feature']).Feature,
+    lambda: type('Feature', (), {}),
+    logger,
+    "Feature"
+)
+is_enabled = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['is_enabled']).is_enabled,
+    lambda: (lambda *a, **k: False),
+    logger,
+    "is_enabled"
+)
 
 # --- Default values ---
 DEFAULT_CALIBRATION = {

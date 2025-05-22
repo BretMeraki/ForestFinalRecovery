@@ -39,10 +39,13 @@ from pydantic import BaseModel, Field
 # --- LLM Imports with Fallback ---
 try:
     # First try to import from the real implementation
-    from forest_app.integrations.llm import (LLMClient, LLMError,
-                                             LLMGenerationError,
-                                             LLMValidationError,
-                                             SentimentResponseModel)
+    from forest_app.integrations.llm import (
+        LLMClient,
+        LLMError,
+        LLMGenerationError,
+        LLMValidationError,
+        SentimentResponseModel,
+    )
 
     llm_import_ok = True
 except ImportError as e:
@@ -52,9 +55,12 @@ except ImportError as e:
     llm_import_ok = False
 
     # Import centralized fallback implementations
-    from forest_app.integrations.llm_fallbacks import (LLMClient, LLMError,
-                                                       LLMGenerationError,
-                                                       LLMValidationError)
+    from forest_app.integrations.llm_fallbacks import (
+        LLMClient,
+        LLMError,
+        LLMGenerationError,
+        LLMValidationError,
+    )
 
     # Define a dummy SentimentResponseModel since it's specific to sentiment analysis
     class SentimentResponseModel(BaseModel):

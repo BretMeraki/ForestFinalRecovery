@@ -10,10 +10,13 @@ from sqlalchemy.orm import Session
 # Removed try...except ImportError block. Relying on direct import.
 # Ensure this import path is correct for your project structure.
 from forest_app.modules.hta_tree import HTANode
+
 # --- Persistence Imports ---
 # Import repositories for logging events
-from forest_app.persistence.repository import (ReflectionEventLogRepository,
-                                               TaskEventLogRepository)
+from forest_app.persistence.repository import (
+    ReflectionEventLogRepository,
+    TaskEventLogRepository,
+)
 
 # ─────────────────────────────
 

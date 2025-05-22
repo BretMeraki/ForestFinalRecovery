@@ -9,6 +9,7 @@ This module tests the dynamic HTA tree generation framework, ensuring that:
 """
 
 import asyncio
+
 # For debugging purposes
 import sys
 import uuid
@@ -26,12 +27,15 @@ print("Working directory setup...")
 # Import our test helpers - using relative imports for testing
 try:
     print("Attempting to import test helpers...")
-    from forest_app.core.services.test_helpers.mock_enhanced_hta_service import \
-        get_mock_enhanced_hta_service
-    from forest_app.core.services.test_helpers.mock_node_generator import \
-        get_mock_node_generator
-    from forest_app.core.services.test_helpers.mock_repository import \
-        get_mock_tree_repository
+    from forest_app.core.services.test_helpers.mock_enhanced_hta_service import (
+        get_mock_enhanced_hta_service,
+    )
+    from forest_app.core.services.test_helpers.mock_node_generator import (
+        get_mock_node_generator,
+    )
+    from forest_app.core.services.test_helpers.mock_repository import (
+        get_mock_tree_repository,
+    )
 
     print("Successfully imported test helpers")
 except ImportError as e:

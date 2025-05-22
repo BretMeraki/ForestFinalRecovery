@@ -10,6 +10,7 @@ from uuid import UUID
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
+
 # --- Shared in-memory SQLite engine and session for all tests ---
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

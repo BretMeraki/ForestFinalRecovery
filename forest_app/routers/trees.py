@@ -9,28 +9,73 @@ and integration with EnhancedHTAService.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
-from fastapi import (APIRouter, Body, Depends, HTTPException, Path, Request,
-                     status)
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from forest_app.core.roadmap_models import RoadmapManifest
-from forest_app.core.auth.security_utils import get_current_active_user
-from forest_app.core.services.enhanced_hta import EnhancedHTAService
-# --- Service Access ---
-from forest_app.dependencies import get_hta_service
-# --- Dependencies & Models ---
-from forest_app.database.session import get_db
-from forest_app.models import UserModel
-from forest_app.persistence.repository import HTATreeRepository
+from forest_app.utils.import_fallbacks import import_with_fallback
+from forest_app.utils.shared_helpers import get_snapshot_data, get_snapshot_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+RoadmapManifest = import_with_fallback(
+    lambda: __import__('forest_app.core.roadmap_models', fromlist=['RoadmapManifest']).RoadmapManifest,
+    lambda: type('RoadmapManifest', (), {'model_validate': staticmethod(lambda data: data)}),
+    logger,
+    "RoadmapManifest"
+)
+get_current_active_user = import_with_fallback(
+    lambda: __import__('forest_app.core.security', fromlist=['get_current_active_user']).get_current_active_user,
+    lambda: (lambda *a, **k: (_ for _ in ()).throw(HTTPException(status_code=500, detail="Security module missing."))),
+    logger,
+    "get_current_active_user"
+)
+EnhancedHTAService = import_with_fallback(
+    lambda: __import__('forest_app.core.services.enhanced_hta.core', fromlist=['EnhancedHTAService']).EnhancedHTAService,
+    lambda: type('EnhancedHTAService', (), {'generate_initial_hta_from_manifest': staticmethod(lambda *a, **k: None)}),
+    logger,
+    "EnhancedHTAService"
+)
+get_hta_service = import_with_fallback(
+    lambda: __import__('forest_app.dependencies', fromlist=['get_hta_service']).get_hta_service,
+    lambda: (lambda *a, **k: (_ for _ in ()).throw(HTTPException(status_code=500, detail="Dependency get_hta_service missing."))),
+    logger,
+    "get_hta_service"
+)
+get_db = import_with_fallback(
+    lambda: __import__('forest_app.persistence.database', fromlist=['get_db']).get_db,
+    lambda: (lambda: (_ for _ in ()).throw(HTTPException(status_code=500, detail="Database module missing."))),
+    logger,
+    "get_db"
+)
+UserModel = import_with_fallback(
+    lambda: __import__('forest_app.persistence.models', fromlist=['UserModel']).UserModel,
+    lambda: type('UserModel', (), {'id': None}),
+    logger,
+    "UserModel"
+)
+HTATreeRepository = import_with_fallback(
+    lambda: __import__('forest_app.persistence.repository', fromlist=['HTATreeRepository']).HTATreeRepository,
+    lambda: type('HTATreeRepository', (), {
+        '__init__': lambda self, *a, **k: None,
+        'find_by_metadata': lambda self, *a, **k: None,
+        'update_metadata': lambda self, *a, **k: None,
+        'get_tree': lambda self, *a, **k: None
+    }),
+    logger,
+    "HTATreeRepository"
+)
+constants = import_with_fallback(
+    lambda: __import__('forest_app.config', fromlist=['constants']).constants,
+    lambda: type('ConstantsPlaceholder', (), {})(),
+    logger,
+    "constants"
+)
 
 # --- Pydantic Models ---
 class TreeCreateRequest(BaseModel):

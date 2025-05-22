@@ -17,7 +17,9 @@ try:
         test_manifest_add_step_and_status_update,
         test_manifest_circular_dependency_detection,
         test_manifest_step_index_and_lookup,
-        test_roadmapstep_dependencies_frozenset, test_roadmapstep_timestamps)
+        test_roadmapstep_dependencies_frozenset,
+        test_roadmapstep_timestamps,
+    )
 
     print("==== Running RoadmapModels Tests ====")
 

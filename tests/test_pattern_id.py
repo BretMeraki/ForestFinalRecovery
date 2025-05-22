@@ -5,8 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from forest_app.modules.pattern_id import (DEFAULT_CONFIG,
-                                           PatternIdentificationEngine)
+from forest_app.modules.pattern_id import DEFAULT_CONFIG, PatternIdentificationEngine
 
 
 @pytest.fixture

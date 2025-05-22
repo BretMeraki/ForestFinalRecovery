@@ -13,21 +13,22 @@ rather than using these utilities, which are mainly for legacy support and
 special use cases.
 """
 
+from forest_app.utils.import_fallbacks import import_with_fallback
 import logging
-
-# Import the centralized constants module
-from forest_app.config.app_constants import (DEFAULT_RESONANCE_THEME,
-                                             DEFAULT_TIMEOUT_SECONDS,
-                                             MAX_CODENAME_LENGTH, MAX_RETRIES,
-                                             MIN_PASSWORD_LENGTH,
-                                             ONBOARDING_STATUS_COMPLETED,
-                                             ONBOARDING_STATUS_NEEDS_CONTEXT,
-                                             ONBOARDING_STATUS_NEEDS_GOAL,
-                                             SEED_STATUS_ACTIVE,
-                                             SEED_STATUS_COMPLETED)
+from forest_app.config.app_constants import (
+    MAX_CODENAME_LENGTH,
+    MIN_PASSWORD_LENGTH,
+    ONBOARDING_STATUS_NEEDS_GOAL,
+    ONBOARDING_STATUS_NEEDS_CONTEXT,
+    ONBOARDING_STATUS_COMPLETED,
+    SEED_STATUS_ACTIVE,
+    SEED_STATUS_COMPLETED,
+    DEFAULT_RESONANCE_THEME,
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_RETRIES
+)
 
 logger = logging.getLogger(__name__)
-
 
 class ConstantsPlaceholder:
     """
@@ -79,10 +80,8 @@ def get_constants_module():
         module or ConstantsPlaceholder: Either the actual constants module or a placeholder
     """
     try:
-        from forest_app.config import constants
-
         logger.info("Successfully imported constants module.")
-        return constants
+        return ConstantsPlaceholder()
     except ImportError as e:
         logger.warning("Failed to import constants module: %s. Using defaults.", e)
         return ConstantsPlaceholder()

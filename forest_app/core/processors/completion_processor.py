@@ -7,10 +7,19 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+try:
+    from sqlalchemy.orm import Session
+except ImportError as e:
+    logging.error(f"Failed to import Session: {e}")
+    class Session:
+        pass
 
-# Import centralized error handling
-from forest_app.utils.error_handling import log_import_error
+try:
+    from forest_app.utils.error_handling import log_import_error
+except ImportError as e:
+    logging.error(f"Failed to import log_import_error: {e}")
+    def log_import_error(error, module_name=None):
+        logging.error(f"Import error in {module_name or 'unknown module'}: {error}")
 
 # Core imports with error handling
 try:
@@ -21,20 +30,20 @@ try:
     from forest_app.core.transaction_decorator import transaction_protected
     from forest_app.core.utils import clamp01
     from forest_app.integrations.llm import LLMClient
-    from forest_app.modules.logging_tracking import (ReflectionLogLogger,
-                                                     TaskFootprintLogger)
+    from forest_app.models import HTANodeModel, MemorySnapshotModel, TaskFootprintModel
+    from forest_app.modules.logging_tracking import (
+        ReflectionLogLogger,
+        TaskFootprintLogger,
+    )
     from forest_app.modules.task_engine import TaskEngine
     from forest_app.modules.xp_mastery import XPMastery
-    from forest_app.models import HTANodeModel, MemorySnapshotModel, TaskFootprintModel
-    from forest_app.persistence.repository import HTATreeRepository
+    from forest_app.persistence.repository import HTATreeRepository, TaskEventLogRepository, ReflectionEventLogRepository
 except ImportError as e:
     log_import_error(e, "completion_processor.py")
 
     # Define dummy classes if imports fail
     class MemorySnapshot:
         pass
-
-    # Import the HTAService protocol to ensure type safety
 
     class SemanticMemoryManager:
         pass
@@ -52,6 +61,15 @@ except ImportError as e:
         pass
 
     class ReflectionLogLogger:
+        pass
+
+    class HTATreeRepository:
+        pass
+
+    class TaskEventLogRepository:
+        pass
+
+    class ReflectionEventLogRepository:
         pass
 
     # Import centralized fallback implementation
@@ -263,9 +281,8 @@ class CompletionProcessor:
             reinforcement = await self._generate_positive_reinforcement(node)
 
             # 8. Create task footprint for audit logging
-            footprint = None
             if self.task_logger:
-                footprint = await self.task_logger.log_task_completion(
+                await self.task_logger.log_task_completion(
                     user_id=user_id,
                     node_id=node_id,
                     completed_at=completion_time,

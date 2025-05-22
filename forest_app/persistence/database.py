@@ -56,7 +56,7 @@ def _dummy_session_factory():
 
 
 # --- Initialize SessionLocal with the dummy function ---
-SessionLocal: sessionmaker[Session] = _dummy_session_factory
+SessionLocal = _dummy_session_factory
 logger.info(
     "SessionLocal initialized with a dummy factory (will be replaced upon successful DB connection)."
 )

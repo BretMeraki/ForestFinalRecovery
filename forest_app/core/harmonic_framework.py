@@ -3,11 +3,29 @@
 import logging
 
 # --- Import Constants ---
-from forest_app.config.constants import (  # Weights for Silent Scoring (Ensure these sum as intended, e.g., to 1.0); Default snapshot values if keys are missing; Harmonic Routing Thresholds
-    DEFAULT_SNAPSHOT_CAPACITY, DEFAULT_SNAPSHOT_MAGNITUDE,
-    DEFAULT_SNAPSHOT_SHADOW, HARMONY_THRESHOLD_REFLECTION,
-    HARMONY_THRESHOLD_RENEWAL, HARMONY_THRESHOLD_RESILIENCE, WEIGHT_CAPACITY,
-    WEIGHT_MAGNITUDE, WEIGHT_SHADOW_SCORE)
+try:
+    from forest_app.config.constants import (  # Weights for Silent Scoring (Ensure these sum as intended, e.g., to 1.0); Default snapshot values if keys are missing; Harmonic Routing Thresholds
+        DEFAULT_SNAPSHOT_CAPACITY,
+        DEFAULT_SNAPSHOT_MAGNITUDE,
+        DEFAULT_SNAPSHOT_SHADOW,
+        HARMONY_THRESHOLD_REFLECTION,
+        HARMONY_THRESHOLD_RENEWAL,
+        HARMONY_THRESHOLD_RESILIENCE,
+        WEIGHT_CAPACITY,
+        WEIGHT_MAGNITUDE,
+        WEIGHT_SHADOW_SCORE,
+    )
+except ImportError as e:
+    logging.error(f"Failed to import constants: {e}")
+    DEFAULT_SNAPSHOT_CAPACITY = 0.5
+    DEFAULT_SNAPSHOT_MAGNITUDE = 5.0
+    DEFAULT_SNAPSHOT_SHADOW = 0.5
+    HARMONY_THRESHOLD_REFLECTION = 0.3
+    HARMONY_THRESHOLD_RENEWAL = 0.6
+    HARMONY_THRESHOLD_RESILIENCE = 0.9
+    WEIGHT_CAPACITY = 0.33
+    WEIGHT_MAGNITUDE = 0.33
+    WEIGHT_SHADOW_SCORE = 0.34
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

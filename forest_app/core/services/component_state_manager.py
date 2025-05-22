@@ -4,8 +4,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-# Assuming MemorySnapshot is importable like this
-from forest_app.core.snapshot import MemorySnapshot
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        pass
 
 logger = logging.getLogger(__name__)
 

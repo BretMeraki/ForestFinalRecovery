@@ -8,8 +8,17 @@ import asyncio
 import logging
 import threading
 from typing import Any, Callable, Dict, Optional
+from uuid import UUID
 
-from forest_app.core.onboarding import onboard_user, run_forest_session_async
+try:
+    from forest_app.core.onboarding import onboard_user
+    from forest_app.core.session_management import run_forest_session_async
+except ImportError as e:
+    logging.error(f"Failed to import onboard_user or run_forest_session_async: {e}")
+    def onboard_user(snapshot, baselines, save_snapshot):
+        return snapshot
+    async def run_forest_session_async(snapshot, save_snapshot, lock):
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +30,7 @@ class SessionInfo:
 
     def __init__(
         self,
-        user_id: str,
+        user_id: UUID,
         snapshot: Dict[str, Any],
         save_snapshot: Callable[[Dict[str, Any]], None],
         baselines: Dict[str, float],
@@ -45,11 +54,11 @@ class SessionManager:
     """
 
     def __init__(self):
-        self._sessions: Dict[str, SessionInfo] = {}
+        self._sessions: Dict[UUID, SessionInfo] = {}
 
     def start_session(
         self,
-        user_id: str,
+        user_id: UUID,
         initial_snapshot: Dict[str, Any],
         baselines: Dict[str, float],
         save_snapshot: Callable[[Dict[str, Any]], None],
@@ -67,7 +76,7 @@ class SessionManager:
         self._sessions[user_id] = info
         logger.info("Started session for user '%s'", user_id)
 
-    def stop_session(self, user_id: str) -> None:
+    def stop_session(self, user_id: UUID) -> None:
         """
         Stop the heartbeat loop for the user and remove session.
         """
@@ -83,20 +92,20 @@ class SessionManager:
         for uid in list(self._sessions.keys()):
             self.stop_session(uid)
 
-    def get_session_info(self, user_id: str) -> Optional[SessionInfo]:
+    def get_session_info(self, user_id: UUID) -> Optional[SessionInfo]:
         """
         Retrieve the SessionInfo object for a user.
         """
         return self._sessions.get(user_id)
 
-    def get_session_lock(self, user_id: str) -> Optional[threading.Lock]:
+    def get_session_lock(self, user_id: UUID) -> Optional[threading.Lock]:
         """
         Retrieve the threading.Lock for a user's session.
         """
         info = self.get_session_info(user_id)
         return info.lock if info else None
 
-    def get_snapshot(self, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_snapshot(self, user_id: UUID) -> Optional[Dict[str, Any]]:
         """
         Retrieve the live snapshot for a user. Use get_session_lock() to guard modifications.
         """
@@ -106,8 +115,13 @@ class SessionManager:
     @classmethod
     def get_instance(cls):
         """Return the global singleton instance of SessionManager."""
-        from forest_app.core.session_manager import session_manager
-
+        try:
+            from forest_app.core.session_manager import session_manager
+        except ImportError as e:
+            logging.error(f"Failed to import session_manager: {e}")
+            class DummySessionManager:
+                pass
+            return DummySessionManager()
         return session_manager
 
 

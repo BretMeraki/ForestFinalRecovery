@@ -4,11 +4,14 @@ import os  # Import the os module
 from logging.config import fileConfig
 
 # Import necessary SQLAlchemy components
-from sqlalchemy import create_engine  # Import create_engine explicitly
-from sqlalchemy import pool
+from sqlalchemy import (
+    create_engine,  # Import create_engine explicitly
+    pool,
+)
 
 # Import Alembic context
 from alembic import context
+
 # --- MODIFY THIS ---
 # Import Base model directly from the models file
 # This avoids importing from forest_app.__init__ which might have circular dependencies

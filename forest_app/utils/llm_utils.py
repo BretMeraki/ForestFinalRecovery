@@ -7,12 +7,17 @@ to reduce code duplication across the application.
 The actual fallback implementations are now centralized in forest_app.integrations.llm_fallbacks.
 """
 
+from forest_app.utils.import_fallbacks import import_with_fallback
 import logging
 
-# Import centralized fallbacks
-from forest_app.integrations.llm_fallbacks import get_llm_fallbacks
-
 logger = logging.getLogger(__name__)
+
+get_llm_fallbacks = import_with_fallback(
+    lambda: __import__('forest_app.integrations.llm_fallbacks', fromlist=['get_llm_fallbacks']).get_llm_fallbacks,
+    lambda: (lambda *a, **k: {}),
+    logger,
+    "get_llm_fallbacks"
+)
 
 
 def create_llm_dummy_classes():

@@ -17,7 +17,6 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
-
 class TaskQueue:
     """
     An asynchronous task queue for processing intensive background operations.
@@ -361,9 +360,14 @@ class TaskQueue:
     @classmethod
     def get_instance(cls):
         """Return the global singleton instance of TaskQueue."""
-        from forest_app.core.task_queue import task_queue
-
-        return task_queue
+        try:
+            from forest_app.core.task_queue import TaskQueue
+        except ImportError as e:
+            logging.error(f"Failed to import TaskQueue: {e}")
+            class DummyTaskQueue:
+                pass
+            return DummyTaskQueue()
+        return TaskQueue
 
 
 task_queue = TaskQueue()

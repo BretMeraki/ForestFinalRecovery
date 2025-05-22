@@ -5,31 +5,16 @@ import logging
 import os
 import re  # Import regex for parsing IDs
 from typing import Any, Dict, Optional  # Added typing
-
-# --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("trigger_phrase_init")
-    logger.warning(
-        "Feature flags module not found in trigger_phrase. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        TRIGGER_PHRASES = "FEATURE_ENABLE_TRIGGER_PHRASES"  # Define the specific flag
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
-
-# Imports needed for type hints if using snapshot in handlers
-# from forest_app.core.snapshot import MemorySnapshot # Can likely be removed if snapshot not truly needed by handlers
+from forest_app.utils.import_fallbacks import import_with_fallback, get_feature_flag_tools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# --- Import Feature Flags ---
+Feature, is_enabled = get_feature_flag_tools(logger)
+
+# Imports needed for type hints if using snapshot in handlers
+# from forest_app.core.snapshot import MemorySnapshot # Can likely be removed if snapshot not truly needed by handlers
 
 # --- Default empty trigger map if feature disabled or load fails ---
 DEFAULT_EMPTY_TRIGGER_MAP = {}

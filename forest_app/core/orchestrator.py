@@ -2,101 +2,91 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
+import threading
 
-from sqlalchemy.orm import Session
+try:
+    from sqlalchemy.orm import Session
+except ImportError as e:
+    logging.error(f"Failed to import Session: {e}")
+    class Session:
+        pass
 
-# Import centralized error handling
-from forest_app.utils.error_handling import log_import_error
+try:
+    from forest_app.utils.error_handling import log_import_error
+except ImportError as e:
+    def log_import_error(error, module_name=None):
+        logging.error(f"Import error in {module_name or 'unknown module'}: {error}")
 
 # Core imports with error handling
 try:
     from uuid import UUID
-
-    from forest_app.core.processors import (CompletionProcessor,
-                                            ReflectionProcessor)
-    from forest_app.core.services import (ComponentStateManager, HTAService,
-                                          SemanticMemoryManager)
+    from forest_app.core.processors import CompletionProcessor, ReflectionProcessor
+    from forest_app.core.services import (
+        ComponentStateManager,
+        HTAService,
+        SemanticMemoryManager,
+    )
     from forest_app.core.services.enhanced_hta.memory import HTAMemoryManager
     from forest_app.core.snapshot import MemorySnapshot
     from forest_app.core.utils import clamp01
-    from forest_app.modules.logging_tracking import (ReflectionLogLogger,
-                                                     TaskFootprintLogger)
+    from forest_app.models import HTANodeModel
+    from forest_app.modules.logging_tracking import (
+        ReflectionLogLogger,
+        TaskFootprintLogger,
+    )
     from forest_app.modules.seed import Seed, SeedManager
     from forest_app.modules.soft_deadline_manager import hours_until_deadline
-    from forest_app.models import HTANodeModel
     from forest_app.persistence.repository import HTATreeRepository
 except ImportError as e:
     log_import_error(e, "orchestrator.py")
-
-    # Define dummy classes if imports fail
     class MemorySnapshot:
         pass
-
     class ReflectionProcessor:
         pass
-
     class CompletionProcessor:
         pass
-
-    # Import the HTAService protocol to ensure type safety
-
     class ComponentStateManager:
         pass
-
     class SemanticMemoryManager:
         pass
-
     class HTAMemoryManager:
         pass
-
     class SeedManager:
         pass
-
     class Seed:
         pass
-
     class TaskFootprintLogger:
         pass
-
     class ReflectionLogLogger:
         pass
-
     class HTATreeRepository:
         pass
-
     class HTANodeModel:
         pass
-
     class UUID:
         pass
-
     def clamp01(x):
         return x
-
     def hours_until_deadline(x):
         return 0
 
-
-# Feature flags with error handling
 try:
     from forest_app.core.feature_flags import Feature, is_enabled
 except ImportError:
-
     def is_enabled(feature):
         return False
-
     class Feature:
         SOFT_DEADLINES = "FEATURE_ENABLE_SOFT_DEADLINES"
 
-
-# Constants with error handling
 try:
-    from forest_app.config.constants import (MAGNITUDE_THRESHOLDS,
-                                             WITHERING_COMPLETION_RELIEF,
-                                             WITHERING_DECAY_FACTOR,
-                                             WITHERING_IDLE_COEFF,
-                                             WITHERING_OVERDUE_COEFF)
+    from forest_app.config.constants import (
+        MAGNITUDE_THRESHOLDS,
+        WITHERING_COMPLETION_RELIEF,
+        WITHERING_DECAY_FACTOR,
+        WITHERING_IDLE_COEFF,
+        WITHERING_OVERDUE_COEFF,
+    )
 except ImportError:
     MAGNITUDE_THRESHOLDS = {"HIGH": 8.0, "MEDIUM": 5.0, "LOW": 2.0}
     WITHERING_COMPLETION_RELIEF = 0.1
@@ -104,18 +94,31 @@ except ImportError:
     WITHERING_OVERDUE_COEFF = 0.1
     WITHERING_DECAY_FACTOR = 0.9
 
-# Import shared types
-from forest_app.modules.types import SemanticMemoryProtocol
+try:
+    from forest_app.modules.types import SemanticMemoryProtocol
+except ImportError as e:
+    logging.error(f"Failed to import SemanticMemoryProtocol: {e}")
+    class SemanticMemoryProtocol:
+        pass
+
+try:
+    from forest_app.core.session_management import run_forest_session, run_forest_session_async
+except ImportError as e:
+    logging.error(f"Failed to import session management functions: {e}")
+    def run_forest_session(*args, **kwargs):
+        pass
+    def run_forest_session_async(*args, **kwargs):
+        pass
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # ═════════════════════════════ ForestOrchestrator (Refactored) ══════════════
 
 
 class ForestOrchestrator:
     """
-    Coordinates the main Forest application workflows by delegating to
-    specialized processors and services. Manages top-level state transitions.
+    Orchestrates the Forest OS session lifecycle and state management.
     """
 
     # ───────────────────────── 1. INITIALISATION (DI Based) ─────────────────
@@ -132,6 +135,7 @@ class ForestOrchestrator:
         task_logger: Optional[TaskFootprintLogger] = None,
         reflection_logger: Optional[ReflectionLogLogger] = None,
         llm_client=None,
+        saver: Callable[[Dict[str, Any]], None] = None,
     ):
         """Initializes the orchestrator with injected processors and services."""
         self.reflection_processor = reflection_processor
@@ -146,6 +150,7 @@ class ForestOrchestrator:
         self.reflection_logger = reflection_logger
         self.llm_client = llm_client
         self.logger = logging.getLogger(__name__)
+        self._saver = saver
 
         # Check critical dependencies
         if not isinstance(self.reflection_processor, ReflectionProcessor):
@@ -363,85 +368,63 @@ class ForestOrchestrator:
 
     # ───────────────────────── 3. UTILITY & DELEGATION ──────────────────────
 
-    # Keeping _update_withering here for now, could be moved to its own class
-    def _update_withering(self, snap: MemorySnapshot):
-        """Adjusts withering level based on inactivity and deadlines."""
-        # (Implementation is the same as the original orchestrator version)
-        if not hasattr(snap, "withering_level"):
-            snap.withering_level = 0.0
-        if not hasattr(snap, "component_state") or not isinstance(
-            snap.component_state, dict
-        ):
-            snap.component_state = {}
-        if not hasattr(snap, "task_backlog") or not isinstance(snap.task_backlog, list):
-            snap.task_backlog = []
+    def _update_withering(self, snapshot: Dict[str, Any]) -> None:
+        """
+        Update withering scores for tasks and goals based on time elapsed.
 
-        current_path = getattr(snap, "current_path", "structured")
-        now_utc = datetime.now(timezone.utc)
-        last_iso = snap.component_state.get("last_activity_ts")
-        idle_hours = 0.0
-        if last_iso and isinstance(last_iso, str):
-            try:
-                # Ensure TZ info for comparison
-                last_dt_aware = datetime.fromisoformat(last_iso.replace("Z", "+00:00"))
-                if last_dt_aware.tzinfo is None:
-                    last_dt_aware = last_dt_aware.replace(tzinfo=timezone.utc)
-                idle_delta = now_utc - last_dt_aware
-                idle_hours = max(0.0, idle_delta.total_seconds() / 3600.0)
-            except ValueError:
-                logger.warning("Could not parse last_activity_ts: %s", last_iso)
-            except Exception as ts_err:
-                logger.exception("Error processing last_activity_ts: %s", ts_err)
-        elif last_iso is not None:
-            logger.warning("last_activity_ts is not a string: %s", type(last_iso))
+        Args:
+            snapshot: Current session snapshot
+        """
+        try:
+            # Update task withering
+            tasks = snapshot.get("tasks", [])
+            for task in tasks:
+                if "withering" not in task:
+                    task["withering"] = 0.0
+                task["withering"] = min(1.0, task["withering"] + 0.1)
 
-        idle_coeff = WITHERING_IDLE_COEFF.get(
-            current_path, WITHERING_IDLE_COEFF["structured"]
-        )
-        idle_penalty = idle_coeff * idle_hours
+            # Update goal withering
+            goals = snapshot.get("goals", [])
+            for goal in goals:
+                if "withering" not in goal:
+                    goal["withering"] = 0.0
+                goal["withering"] = min(1.0, goal["withering"] + 0.05)
 
-        overdue_hours = 0.0
-        if (
-            is_enabled(Feature.SOFT_DEADLINES)
-            and current_path != "open"
-            and isinstance(snap.task_backlog, list)
-        ):
-            try:
-                overdue_list = []
-                for task in snap.task_backlog:
-                    if isinstance(task, dict) and task.get("soft_deadline"):
-                        overdue = hours_until_deadline(task)  # Use imported helper
-                        if isinstance(overdue, (int, float)) and overdue < 0:
-                            overdue_list.append(abs(overdue))
-                if overdue_list:
-                    overdue_hours = max(overdue_list)
-            except Exception as e:
-                logger.error(
-                    "Error calculating overdue hours: %s", e
-                )  # Simplified error handling
-        elif not is_enabled(Feature.SOFT_DEADLINES):
-            logger.debug(
-                "Skipping overdue hours calculation: SOFT_DEADLINES feature disabled."
-            )
+        except Exception as e:
+            logger.error("Error updating withering: %s", e, exc_info=True)
+            raise
 
-        soft_coeff = (
-            WITHERING_OVERDUE_COEFF.get(current_path, 0.0)
-            if is_enabled(Feature.SOFT_DEADLINES)
-            else 0.0
-        )
-        soft_penalty = soft_coeff * overdue_hours
+    def _save_component_states(self, snapshot: Dict[str, Any]) -> None:
+        """
+        Save the current state of all components.
 
-        current_withering = getattr(snap, "withering_level", 0.0)
-        if not isinstance(current_withering, (int, float)):
-            current_withering = 0.0
-        new_level = float(current_withering) + idle_penalty + soft_penalty
-        snap.withering_level = clamp01(new_level * WITHERING_DECAY_FACTOR)
-        logger.debug(
-            "Withering updated: Level=%s (IdleHrs=%s, OverdueHrs=%s)",
-            snap.withering_level,
-            idle_hours,
-            overdue_hours,
-        )
+        Args:
+            snapshot: Current session snapshot
+        """
+        try:
+            self._saver(snapshot)
+        except Exception as e:
+            logger.error("Error saving component states: %s", e, exc_info=True)
+            raise
+
+    def start_session(
+        self,
+        snapshot: Dict[str, Any],
+        lock: Optional[threading.Lock] = None,
+        async_mode: bool = False
+    ) -> None:
+        """
+        Start a new Forest OS session with heartbeat management.
+
+        Args:
+            snapshot: Session snapshot to manage
+            lock: Optional thread lock for thread-safe operations
+            async_mode: Whether to run in async mode
+        """
+        if async_mode:
+            run_forest_session_async(snapshot, self._saver, lock)
+        else:
+            run_forest_session(snapshot, self._saver, lock)
 
     # Example: Keeping get_primary_active_seed here, but could be moved to SeedManager
     async def get_primary_active_seed(self) -> Optional[Seed]:
@@ -494,34 +477,3 @@ class ForestOrchestrator:
                 "Orchestrator trigger_seed_evolution delegation error: %s", exc
             )
             return False
-
-    # Static utility method can remain
-    @staticmethod
-    def describe_magnitude(value: float) -> str:
-        # (Implementation is the same as the original orchestrator version)
-        try:
-            float_value = float(value)
-            valid_thresholds = {
-                k: float(v)
-                for k, v in MAGNITUDE_THRESHOLDS.items()
-                if isinstance(v, (int, float))
-            }
-            if not valid_thresholds:
-                return "Unknown"
-            sorted_thresholds = sorted(
-                valid_thresholds.items(), key=lambda item: item[1], reverse=True
-            )
-            for label, thresh in sorted_thresholds:
-                if float_value >= thresh:
-                    return str(label)
-            return str(sorted_thresholds[-1][0]) if sorted_thresholds else "Dormant"
-        except (ValueError, TypeError) as e:
-            logger.error(
-                "Error converting value/threshold for magnitude: %s (Value: %s)",
-                e,
-                value,
-            )
-            return "Unknown"
-        except Exception as e:
-            logger.exception("Error describing magnitude for value %s: %s", value, e)
-            return "Unknown"

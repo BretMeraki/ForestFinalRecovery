@@ -148,3 +148,6 @@ Figma-Context-MCP/.cache/
 # Task files
 
 mcp_config.json
+
+# Cursor MCP config (contains API keys, do not commit)
+.cursor/mcp.json

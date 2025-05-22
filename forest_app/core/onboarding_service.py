@@ -13,8 +13,19 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
-from forest_app.core.roadmap_models import RoadmapManifest
-from forest_app.integrations.llm_service import BaseLLMService
+try:
+    from forest_app.core.roadmap_models import RoadmapManifest
+except ImportError as e:
+    logging.error(f"Failed to import RoadmapManifest: {e}")
+    class RoadmapManifest:
+        pass
+
+try:
+    from forest_app.integrations.llm_service import BaseLLMService
+except ImportError as e:
+    logging.error(f"Failed to import BaseLLMService: {e}")
+    class BaseLLMService:
+        pass
 
 # Set up logger
 logger = logging.getLogger(__name__)

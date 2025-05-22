@@ -6,20 +6,78 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from forest_app.core.harmonic_framework import HarmonicRouting, SilentScoring
+try:
+    from forest_app.core.harmonic_framework import HarmonicRouting, SilentScoring
+except ImportError as e:
+    logging.error(f"Failed to import HarmonicRouting or SilentScoring: {e}")
+    class HarmonicRouting:
+        pass
+    class SilentScoring:
+        pass
+
 # --- Core & Module Imports ---
 # Import necessary classes for type hints and functionality
-from forest_app.core.snapshot import MemorySnapshot
-from forest_app.core.utils import clamp01
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        pass
+try:
+    from forest_app.core.utils import clamp01
+except ImportError as e:
+    logging.error(f"Failed to import clamp01: {e}")
+    def clamp01(x):
+        return x
+
 # Import LLM Client and specific response models needed
-from forest_app.integrations.llm import (ArbiterStandardResponse, LLMError,
-                                         LLMValidationError)
-from forest_app.modules.narrative_modes import NarrativeModesEngine
-from forest_app.modules.practical_consequence import PracticalConsequenceEngine
-from forest_app.modules.sentiment import (SecretSauceSentimentEngineHybrid,
-                                          SentimentInput, SentimentOutput)
-from forest_app.modules.soft_deadline_manager import \
-    schedule_soft_deadlines  # Keep if scheduling happens here
+try:
+    from forest_app.integrations.llm import (
+        ArbiterStandardResponse,
+        LLMError,
+        LLMValidationError,
+    )
+except ImportError as e:
+    logging.error(f"Failed to import LLM integrations: {e}")
+    class ArbiterStandardResponse:
+        pass
+    class LLMError(Exception):
+        pass
+    class LLMValidationError(Exception):
+        pass
+try:
+    from forest_app.modules.narrative_modes import NarrativeModesEngine
+except ImportError as e:
+    logging.error(f"Failed to import NarrativeModesEngine: {e}")
+    class NarrativeModesEngine:
+        pass
+try:
+    from forest_app.modules.sentiment import (
+        SecretSauceSentimentEngineHybrid,
+        SentimentInput,
+        SentimentOutput,
+    )
+except ImportError as e:
+    logging.error(f"Failed to import sentiment modules: {e}")
+    class SecretSauceSentimentEngineHybrid:
+        async def analyze(self, text, context):
+            return {}
+    class SentimentInput:
+        pass
+    class SentimentOutput:
+        pass
+try:
+    from forest_app.modules.practical_consequence import PracticalConsequenceEngine
+except ImportError as e:
+    logging.error(f"Failed to import PracticalConsequenceEngine: {e}")
+    class PracticalConsequenceEngine:
+        pass
+try:
+    from forest_app.modules.soft_deadline_manager import schedule_soft_deadlines
+except ImportError as e:
+    logging.error(f"Failed to import schedule_soft_deadlines: {e}")
+    def schedule_soft_deadlines(*args, **kwargs):
+        pass
 
 # --- Feature Flags ---
 try:
@@ -38,9 +96,19 @@ except ImportError:
 
 
 # --- Constants (Import or define defaults) ---
-from forest_app.config.constants import (  # Default theme if harmonic routing fails; Needed for describe_magnitude helper; Add FALLBACK_TASK_DETAILS here if it's defined in constants.py
-    DEFAULT_RESONANCE_THEME, MAGNITUDE_THRESHOLDS,
-    REFLECTION_CAPACITY_NUDGE_BASE, REFLECTION_SHADOW_NUDGE_BASE)
+try:
+    from forest_app.config.constants import (  # Default theme if harmonic routing fails; Needed for describe_magnitude helper; Add FALLBACK_TASK_DETAILS here if it's defined in constants.py
+        DEFAULT_RESONANCE_THEME,
+        MAGNITUDE_THRESHOLDS,
+        REFLECTION_CAPACITY_NUDGE_BASE,
+        REFLECTION_SHADOW_NUDGE_BASE,
+    )
+except ImportError as e:
+    logging.error(f"Failed to import config.constants: {e}")
+    DEFAULT_RESONANCE_THEME = "default"
+    MAGNITUDE_THRESHOLDS = {"Dormant": 0, "Active": 5, "Intense": 10}
+    REFLECTION_CAPACITY_NUDGE_BASE = 0.1
+    REFLECTION_SHADOW_NUDGE_BASE = 0.1
 
 # Define fallback task details if not in constants
 FALLBACK_TASK_DETAILS = {
@@ -81,34 +149,7 @@ def prune_context(snap_dict: Dict[str, Any]) -> Dict[str, Any]:
     return ctx
 
 
-def describe_magnitude(value: float) -> str:
-    """Describes magnitude based on thresholds."""
-    # (Same implementation as in the original orchestrator)
-    try:
-        float_value = float(value)
-        # Ensure MAGNITUDE_THRESHOLDS is accessible (imported constant)
-        valid_thresholds = {
-            k: float(v)
-            for k, v in MAGNITUDE_THRESHOLDS.items()
-            if isinstance(v, (int, float))
-        }
-        if not valid_thresholds:
-            return "Unknown"
-        sorted_thresholds = sorted(
-            valid_thresholds.items(), key=lambda item: item[1], reverse=True
-        )
-        for label, thresh in sorted_thresholds:
-            if float_value >= thresh:
-                return str(label)
-        return str(sorted_thresholds[-1][0]) if sorted_thresholds else "Dormant"
-    except (ValueError, TypeError) as e:
-        logger.error(
-            "Error converting value/threshold for magnitude: %s (Value: %s)", e, value
-        )
-        return "Unknown"
-    except Exception as e:
-        logger.exception("Error describing magnitude for value %s: %s", value, e)
-        return "Unknown"
+from forest_app.utils.shared_helpers import describe_magnitude
 
 
 # --- Reflection Processor Class ---
@@ -609,7 +650,7 @@ class ReflectionProcessor:
             ]
             if magnitudes:
                 avg_magnitude = sum(magnitudes) / len(magnitudes)
-        mag_desc = describe_magnitude(avg_magnitude)
+        mag_desc = describe_magnitude(avg_magnitude, MAGNITUDE_THRESHOLDS)
 
         # Calculate Harmonic Routing
         resonance_info = {"theme": DEFAULT_RESONANCE_THEME, "routing_score": 0.0}

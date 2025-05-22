@@ -4,30 +4,26 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional  # Added Optional, Any
 
 import forest_app.utils
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # forest_app/modules/emotional_integrity.py
 
+# Create logger first
+logger = logging.getLogger(__name__)
 
 # --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("ei_init")
-    logger.warning(
-        "Feature flags module not found in emotional_integrity. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        EMOTIONAL_INTEGRITY = (
-            "FEATURE_ENABLE_EMOTIONAL_INTEGRITY"  # Define the specific flag
-        )
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
+Feature = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['Feature']).Feature,
+    lambda: type('Feature', (), {}),
+    logger,
+    "Feature"
+)
+is_enabled = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['is_enabled']).is_enabled,
+    lambda: (lambda *a, **k: False),
+    logger,
+    "is_enabled"
+)
 
 # --- Pydantic Import ---
 try:
@@ -54,9 +50,13 @@ except ImportError:
 # --- LLM Integration Import ---
 try:
     # First try to import from the real implementation
-    from forest_app.integrations.llm import (LLMClient, LLMConfigurationError,
-                                             LLMConnectionError, LLMError,
-                                             LLMValidationError)
+    from forest_app.integrations.llm import (
+        LLMClient,
+        LLMConfigurationError,
+        LLMConnectionError,
+        LLMError,
+        LLMValidationError,
+    )
 
     llm_import_ok = True
 except ImportError as e:
@@ -64,34 +64,30 @@ except ImportError as e:
     llm_import_ok = False
 
     # Import centralized fallback implementations
-    from forest_app.integrations.llm_fallbacks import (LLMClient, LLMError,
-                                                       LLMValidationError)
+    from forest_app.integrations.llm_fallbacks import (
+        LLMClient,
+        LLMError,
+        LLMValidationError,
+    )
 
 
 # --- Constants Import ---
 try:
-    from forest_app.config.constants import (
-        DEFAULT_EMOTIONAL_INTEGRITY_DELTA, DEFAULT_SCORE_PRECISION,
-        EMOTIONAL_INTEGRITY_BASELINE, EMOTIONAL_INTEGRITY_SCALING_FACTOR,
-        MAX_EMOTIONAL_INTEGRITY_DELTA, MAX_EMOTIONAL_INTEGRITY_SCORE,
-        MIN_EMOTIONAL_INTEGRITY_DELTA, MIN_EMOTIONAL_INTEGRITY_SCORE)
+    from forest_app.config import constants
 except ImportError:
-    logging.getLogger("ei_init").critical(
-        "Failed to import constants for EmotionalIntegrityIndex. Using fallback defaults."
-    )
-    # Fallback constants
-    EMOTIONAL_INTEGRITY_BASELINE = 0.5
-    MIN_EMOTIONAL_INTEGRITY_SCORE = 0.0
-    MAX_EMOTIONAL_INTEGRITY_SCORE = 1.0
-    MIN_EMOTIONAL_INTEGRITY_DELTA = -0.2
-    MAX_EMOTIONAL_INTEGRITY_DELTA = 0.2
-    DEFAULT_EMOTIONAL_INTEGRITY_DELTA = 0.0
-    EMOTIONAL_INTEGRITY_SCALING_FACTOR = 0.1  # Example scale factor
-    DEFAULT_SCORE_PRECISION = 3
-
-
-logger = logging.getLogger(__name__)
-# Rely on root logger config for level
+    logger.warning("Failed to import constants, using defaults")
+    # Create a dummy constants object with default values
+    class DummyConstants:
+        EMOTIONAL_INTEGRITY_BASELINE = 0.5
+        MIN_EMOTIONAL_INTEGRITY_DELTA = -0.2
+        MAX_EMOTIONAL_INTEGRITY_DELTA = 0.2
+        DEFAULT_EMOTIONAL_INTEGRITY_DELTA = 0.0
+        MIN_EMOTIONAL_INTEGRITY_SCORE = 0.0
+        MAX_EMOTIONAL_INTEGRITY_SCORE = 1.0
+        EMOTIONAL_INTEGRITY_SCALING_FACTOR = 1.0
+        DEFAULT_SCORE_PRECISION = 2
+    
+    constants = DummyConstants()
 
 # --- Define LLM Response Model ---
 # Only define if Pydantic import was successful
@@ -99,15 +95,9 @@ if pydantic_import_ok:
 
     class EmotionalIntegrityResponse(BaseModel):
         # Use Field constraints for validation upon LLM response parsing
-        kindness_delta: float = Field(
-            ..., ge=MIN_EMOTIONAL_INTEGRITY_DELTA, le=MAX_EMOTIONAL_INTEGRITY_DELTA
-        )
-        respect_delta: float = Field(
-            ..., ge=MIN_EMOTIONAL_INTEGRITY_DELTA, le=MAX_EMOTIONAL_INTEGRITY_DELTA
-        )
-        consideration_delta: float = Field(
-            ..., ge=MIN_EMOTIONAL_INTEGRITY_DELTA, le=MAX_EMOTIONAL_INTEGRITY_DELTA
-        )
+        kindness_delta: float = Field(..., ge=-0.2, le=0.2)
+        respect_delta: float = Field(..., ge=-0.2, le=0.2)
+        consideration_delta: float = Field(..., ge=-0.2, le=0.2)
 
 else:
     # Dummy version if Pydantic failed
@@ -117,10 +107,10 @@ else:
 
 # Define default output when feature is disabled or calculation fails
 DEFAULT_EI_OUTPUT = {
-    "kindness_score": EMOTIONAL_INTEGRITY_BASELINE,
-    "respect_score": EMOTIONAL_INTEGRITY_BASELINE,
-    "consideration_score": EMOTIONAL_INTEGRITY_BASELINE,
-    "overall_index": EMOTIONAL_INTEGRITY_BASELINE,
+    "kindness_score": 0.5,
+    "respect_score": 0.5,
+    "consideration_score": 0.5,
+    "overall_index": 0.5,
     "last_update": None,
 }
 
@@ -156,10 +146,10 @@ class EmotionalIntegrityIndex:
 
     def _reset_state(self):
         """Resets scores to baseline and clears timestamp."""
-        self.kindness_score: float = EMOTIONAL_INTEGRITY_BASELINE
-        self.respect_score: float = EMOTIONAL_INTEGRITY_BASELINE
-        self.consideration_score: float = EMOTIONAL_INTEGRITY_BASELINE
-        self.overall_index: float = EMOTIONAL_INTEGRITY_BASELINE
+        self.kindness_score: float = constants.EMOTIONAL_INTEGRITY_BASELINE
+        self.respect_score: float = constants.EMOTIONAL_INTEGRITY_BASELINE
+        self.consideration_score: float = constants.EMOTIONAL_INTEGRITY_BASELINE
+        self.overall_index: float = constants.EMOTIONAL_INTEGRITY_BASELINE
         self.last_update: Optional[str] = None  # Reset to None
         logger.debug("Emotional Integrity Index state reset to defaults.")
 
@@ -168,13 +158,13 @@ class EmotionalIntegrityIndex:
         scores = [self.kindness_score, self.respect_score, self.consideration_score]
         # Check if list is empty before dividing, though it shouldn't be with current structure
         avg_score = (
-            sum(scores) / len(scores) if scores else EMOTIONAL_INTEGRITY_BASELINE
+            sum(scores) / len(scores) if scores else constants.EMOTIONAL_INTEGRITY_BASELINE
         )
         # Ensure clamping after averaging
         clamped_avg = max(
-            MIN_EMOTIONAL_INTEGRITY_SCORE, min(MAX_EMOTIONAL_INTEGRITY_SCORE, avg_score)
+            constants.MIN_EMOTIONAL_INTEGRITY_SCORE, min(constants.MAX_EMOTIONAL_INTEGRITY_SCORE, avg_score)
         )
-        self.overall_index = round(clamped_avg, DEFAULT_SCORE_PRECISION)
+        self.overall_index = round(clamped_avg, constants.DEFAULT_SCORE_PRECISION)
 
     async def analyze_reflection(
         self, reflection_text: str, context: Optional[Dict] = None
@@ -237,7 +227,7 @@ class EmotionalIntegrityIndex:
             f"USER CONTEXT (Consider lightly):\n{context_summary}\n\n"
             f"INSTRUCTION:\n"
             f"Carefully evaluate the reflection for expressions of Kindness, Respect, and Consideration (towards self or others).\n"
-            f"Assign a delta score between {MIN_EMOTIONAL_INTEGRITY_DELTA} and {MAX_EMOTIONAL_INTEGRITY_DELTA} for each dimension. {DEFAULT_EMOTIONAL_INTEGRITY_DELTA} indicates neutrality.\n"
+            f"Assign a delta score between {constants.MIN_EMOTIONAL_INTEGRITY_DELTA} and {constants.MAX_EMOTIONAL_INTEGRITY_DELTA} for each dimension. {constants.DEFAULT_EMOTIONAL_INTEGRITY_DELTA} indicates neutrality.\n"
             f"Base the score PRIMARILY on the text's expressed content and tone.\n"
             f"Return ONLY a valid JSON object matching this schema:\n{response_model_schema}\n"
         )
@@ -295,7 +285,7 @@ class EmotionalIntegrityIndex:
             )
             return
 
-        scaling_factor = EMOTIONAL_INTEGRITY_SCALING_FACTOR
+        scaling_factor = constants.EMOTIONAL_INTEGRITY_SCALING_FACTOR
 
         def _update_score(current_score, delta_key):
             delta = deltas.get(delta_key)  # Get delta, might be None
@@ -305,19 +295,19 @@ class EmotionalIntegrityIndex:
                     float(
                         delta
                         if delta is not None
-                        else DEFAULT_EMOTIONAL_INTEGRITY_DELTA
+                        else constants.DEFAULT_EMOTIONAL_INTEGRITY_DELTA
                     )
                     * scaling_factor
                 )
             except (ValueError, TypeError):
                 scaled_delta = (
-                    float(DEFAULT_EMOTIONAL_INTEGRITY_DELTA) * scaling_factor
+                    float(constants.DEFAULT_EMOTIONAL_INTEGRITY_DELTA) * scaling_factor
                 )  # Use default delta on error
             new_score = current_score + scaled_delta
             # Clamp using constants
             return max(
-                MIN_EMOTIONAL_INTEGRITY_SCORE,
-                min(MAX_EMOTIONAL_INTEGRITY_SCORE, new_score),
+                constants.MIN_EMOTIONAL_INTEGRITY_SCORE,
+                min(constants.MAX_EMOTIONAL_INTEGRITY_SCORE, new_score),
             )
 
         self.kindness_score = _update_score(self.kindness_score, "kindness_delta")
@@ -330,13 +320,13 @@ class EmotionalIntegrityIndex:
         self.last_update = datetime.now(timezone.utc).isoformat()
         logger.info(
             "Emotional Integrity Index updated: Overall=%.*f (K:%.*f, R:%.*f, C:%.*f)",
-            DEFAULT_SCORE_PRECISION,
+            constants.DEFAULT_SCORE_PRECISION,
             self.overall_index,
-            DEFAULT_SCORE_PRECISION,
+            constants.DEFAULT_SCORE_PRECISION,
             self.kindness_score,
-            DEFAULT_SCORE_PRECISION,
+            constants.DEFAULT_SCORE_PRECISION,
             self.respect_score,
-            DEFAULT_SCORE_PRECISION,
+            constants.DEFAULT_SCORE_PRECISION,
             self.consideration_score,
         )
 
@@ -356,12 +346,12 @@ class EmotionalIntegrityIndex:
 
         # Feature enabled, return current state
         return {
-            "kindness_score": round(self.kindness_score, DEFAULT_SCORE_PRECISION),
-            "respect_score": round(self.respect_score, DEFAULT_SCORE_PRECISION),
+            "kindness_score": round(self.kindness_score, constants.DEFAULT_SCORE_PRECISION),
+            "respect_score": round(self.respect_score, constants.DEFAULT_SCORE_PRECISION),
             "consideration_score": round(
-                self.consideration_score, DEFAULT_SCORE_PRECISION
+                self.consideration_score, constants.DEFAULT_SCORE_PRECISION
             ),
-            "overall_index": round(self.overall_index, DEFAULT_SCORE_PRECISION),
+            "overall_index": round(self.overall_index, constants.DEFAULT_SCORE_PRECISION),
             "last_update": self.last_update,
         }
 
@@ -412,24 +402,24 @@ class EmotionalIntegrityIndex:
                 score = float(value)
                 # Clamp using constants
                 return max(
-                    MIN_EMOTIONAL_INTEGRITY_SCORE,
-                    min(MAX_EMOTIONAL_INTEGRITY_SCORE, score),
+                    constants.MIN_EMOTIONAL_INTEGRITY_SCORE,
+                    min(constants.MAX_EMOTIONAL_INTEGRITY_SCORE, score),
                 )
             except (ValueError, TypeError):
                 logger.warning(
                     "Invalid value '%s' for '%s' during load. Using baseline %.2f.",
                     value,
                     key,
-                    EMOTIONAL_INTEGRITY_BASELINE,
+                    constants.EMOTIONAL_INTEGRITY_BASELINE,
                 )
-                return EMOTIONAL_INTEGRITY_BASELINE  # Use baseline constant on error
+                return constants.EMOTIONAL_INTEGRITY_BASELINE  # Use baseline constant on error
 
         self.kindness_score = _load_score(
-            "kindness_score", EMOTIONAL_INTEGRITY_BASELINE
+            "kindness_score", constants.EMOTIONAL_INTEGRITY_BASELINE
         )
-        self.respect_score = _load_score("respect_score", EMOTIONAL_INTEGRITY_BASELINE)
+        self.respect_score = _load_score("respect_score", constants.EMOTIONAL_INTEGRITY_BASELINE)
         self.consideration_score = _load_score(
-            "consideration_score", EMOTIONAL_INTEGRITY_BASELINE
+            "consideration_score", constants.EMOTIONAL_INTEGRITY_BASELINE
         )
 
         # Recalculate overall index based on loaded scores

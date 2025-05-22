@@ -5,8 +5,17 @@ This module provides a centralized way to manage feature flags across the applic
 """
 
 import logging
+from typing import Any, Callable, Dict, Optional
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 logger = logging.getLogger(__name__)
+
+check_flag = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['is_enabled']).is_enabled,
+    lambda: (lambda feature: False),
+    logger,
+    "check_flag"
+)
 
 # Default feature flags when the real module is not available
 DEFAULT_FEATURE_FLAGS = {
@@ -16,30 +25,20 @@ DEFAULT_FEATURE_FLAGS = {
 }
 
 
-def is_enabled(feature: str) -> bool:
+def is_enabled(flag_name: str, feature_flags: Optional[Dict[str, Any]] = None) -> bool:
     """
-    Check if a feature flag is enabled.
+    Checks if a feature flag is enabled.
 
     Args:
-        feature: The name of the feature flag to check
+        flag_name: The name of the feature flag
+        feature_flags: Optional dictionary of feature flags
 
     Returns:
-        bool: True if the feature is enabled, False otherwise
+        bool: True if the flag is enabled, False otherwise
     """
-    try:
-        from forest_app.config.feature_flags import is_enabled as check_flag
-
-        return check_flag(feature)
-    except ImportError:
-        logger.warning(
-            "Feature flags module not available. Using default values. Feature: %s",
-            feature,
-        )
-        return DEFAULT_FEATURE_FLAGS.get(feature, False)
-    except Exception as e:
-        # Broad catch is intentional for utility robustness and to log unexpected errors.
-        logger.error("Error checking feature flag %s: %s", feature, str(e))
+    if feature_flags is None:
         return False
+    return bool(feature_flags.get(flag_name, False))
 
 
 def with_feature_flag(feature: str, _default: bool = False) -> callable:

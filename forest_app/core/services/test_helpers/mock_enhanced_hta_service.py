@@ -13,7 +13,7 @@ from uuid import UUID
 
 from forest_app.core.roadmap_models import RoadmapManifest
 from forest_app.models import HTANodeModel, HTATreeModel
-from forest_app.persistence.models import (TaskFootprintModel)
+from forest_app.persistence.models import TaskFootprintModel
 
 logger = logging.getLogger(__name__)
 

@@ -14,13 +14,13 @@ from sqlalchemy.orm import Session
 
 from forest_app.config.app_constants import SEED_STATUS_COMPLETED
 from forest_app.core.orchestrator import ForestOrchestrator
-from forest_app.core.auth.security_utils import get_current_active_user
-from forest_app.core.memory.memory_snapshot import MemorySnapshot
+from forest_app.core.security import get_current_active_user
+from forest_app.core.snapshot import MemorySnapshot
 from forest_app.dependencies import get_orchestrator
-from forest_app.routers.onboarding_helpers import save_snapshot_with_codename
-from forest_app.database.session import get_db
-from forest_app.models import UserModel
+from forest_app.persistence.database import get_db
+from forest_app.persistence.models import UserModel
 from forest_app.persistence.repository import MemorySnapshotRepository
+from forest_app.routers.onboarding_helpers import save_snapshot_with_codename
 from forest_app.utils.db_helpers import safe_db_operation
 
 logger = logging.getLogger(__name__)

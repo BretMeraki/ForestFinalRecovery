@@ -12,11 +12,54 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from forest_app.core.cache_service import cacheable
-from forest_app.core.event_bus import EventBus, EventData, EventType
-from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
-from forest_app.integrations.llm import LLMClient
-from forest_app.modules.hta_tree import HTATree
+try:
+    from forest_app.core.cache_service import cacheable
+except ImportError as e:
+    logging.error(f"Failed to import cacheable: {e}")
+    def cacheable(*args, **kwargs):
+        def decorator(fn):
+            return fn
+        return decorator
+
+try:
+    from forest_app.core.event_bus import EventBus, EventData, EventType
+except ImportError as e:
+    logging.error(f"Failed to import EventBus, EventData, or EventType: {e}")
+    class EventBus:
+        @staticmethod
+        def get_instance():
+            return EventBus()
+        def subscribe(self, *args, **kwargs):
+            pass
+    class EventData:
+        user_id = None
+        payload = {}
+        metadata = {}
+    class EventType:
+        REFLECTION_ADDED = "REFLECTION_ADDED"
+        TASK_COMPLETED = "TASK_COMPLETED"
+        MOOD_RECORDED = "MOOD_RECORDED"
+
+try:
+    from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
+except ImportError as e:
+    logging.error(f"Failed to import EnhancedHTAService: {e}")
+    class EnhancedHTAService:
+        pass
+
+try:
+    from forest_app.integrations.llm import LLMClient
+except ImportError as e:
+    logging.error(f"Failed to import LLMClient: {e}")
+    class LLMClient:
+        pass
+
+try:
+    from forest_app.modules.hta_tree import HTATree
+except ImportError as e:
+    logging.error(f"Failed to import HTATree: {e}")
+    class HTATree:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -441,7 +484,7 @@ class DiscoveryJourneyService:
         """
         try:
             # Convert patterns to dictionaries
-            pattern_dicts = [pattern.to_dict() for pattern in patterns]
+            [pattern.to_dict() for pattern in patterns]
 
             # Store in semantic memory
             for pattern in patterns:

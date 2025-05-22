@@ -1,6 +1,7 @@
 """Common test fixtures for Forest App tests."""
 
 import asyncio
+
 # --- Windows event loop policy fix for pytest-asyncio ---
 import sys
 from datetime import datetime, timezone
@@ -14,7 +15,7 @@ if sys.platform.startswith("win"):
 @pytest.fixture
 def mock_feature_flags(mocker):
     """Mock feature flags to always return True."""
-    mock_feature = mocker.patch("forest_app.core.feature_flags.Feature")
+    mocker.patch("forest_app.core.feature_flags.Feature")
     mock_is_enabled = mocker.patch("forest_app.core.feature_flags.is_enabled")
     mock_is_enabled.return_value = True
     return mock_is_enabled

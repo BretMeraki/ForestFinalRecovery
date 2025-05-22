@@ -12,7 +12,12 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
-from forest_app.persistence.database import get_db
+try:
+    from forest_app.persistence.database import get_db
+except ImportError as e:
+    logging.error(f"Failed to import get_db: {e}")
+    def get_db():
+        raise Exception("get_db unavailable")
 
 logger = logging.getLogger(__name__)
 

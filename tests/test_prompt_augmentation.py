@@ -1,7 +1,9 @@
 import pytest
 
 from forest_app.integrations.prompt_augmentation import (
-    AugmentationTemplate, PromptAugmentationService)
+    AugmentationTemplate,
+    PromptAugmentationService,
+)
 
 
 def test_default_template_exists():

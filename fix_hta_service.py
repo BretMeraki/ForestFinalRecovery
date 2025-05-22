@@ -51,13 +51,12 @@ def fix_enhanced_hta_service():
     # Extract parts we need to keep
     start_to_first_method_end = content[: first_method_match.end()]
     after_first_method_docstring = content[first_method_match.end() :]
-    second_method_to_next = content[
+    content[
         second_method_match.start() : next_method_match.start()
     ]
-    remainder = content[next_method_match.start() :]
+    content[next_method_match.start() :]
 
     # Create a comment to indicate where the duplicate was
-    duplicate_comment = "    # Note: Removed duplicate implementation of generate_initial_hta_from_manifest\n"
 
     # Create fixed content
     fixed_content = start_to_first_method_end + after_first_method_docstring

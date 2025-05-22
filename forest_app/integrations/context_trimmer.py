@@ -123,7 +123,6 @@ class ContextTrimmer:
         sections = re.split(f"({pattern}.*(?:\\n|$))", text)
         result = []
 
-        current_section = ""
         section_title = ""
 
         for i, section in enumerate(sections):

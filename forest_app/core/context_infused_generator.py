@@ -10,12 +10,42 @@ import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
-from forest_app.core.schema_contract import HTASchemaContract
-from forest_app.core.session_manager import SessionManager
-from forest_app.core.transaction_decorator import \
-    transaction_protected as transaction_protected
-from forest_app.integrations.llm import LLMClient
-from forest_app.models import HTANodeModel, HTATreeModel
+try:
+    from forest_app.core.schema_contract import HTASchemaContract
+except ImportError as e:
+    logging.error(f"Failed to import HTASchemaContract: {e}")
+    class HTASchemaContract:
+        pass
+
+try:
+    from forest_app.core.session_manager import SessionManager
+except ImportError as e:
+    logging.error(f"Failed to import SessionManager: {e}")
+    class SessionManager:
+        pass
+
+try:
+    from forest_app.core.transaction_decorator import transaction_protected as transaction_protected
+except ImportError as e:
+    logging.error(f"Failed to import transaction_protected: {e}")
+    def transaction_protected(fn):
+        return fn
+
+try:
+    from forest_app.integrations.llm import LLMClient
+except ImportError as e:
+    logging.error(f"Failed to import LLMClient: {e}")
+    class LLMClient:
+        pass
+
+try:
+    from forest_app.models import HTANodeModel, HTATreeModel
+except ImportError as e:
+    logging.error(f"Failed to import HTANodeModel or HTATreeModel: {e}")
+    class HTANodeModel:
+        pass
+    class HTATreeModel:
+        pass
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,6 @@
 import sys
 
-from forest_app.integrations.context_trimmer import (ContextTrimmer,
-                                                     TrimmerConfig)
+from forest_app.integrations.context_trimmer import ContextTrimmer, TrimmerConfig
 
 print("PYTEST sys.path:", sys.path)
 

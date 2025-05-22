@@ -231,7 +231,7 @@ class HTAMemoryManager:
                 milestone_query = select(func.count()).where(
                     (HTANodeModel.user_id == user_id)
                     & (HTANodeModel.status == "completed")
-                    & (HTANodeModel.hta_metadata["is_major_phase"].as_boolean() == True)
+                    & (HTANodeModel.hta_metadata["is_major_phase"].as_boolean())
                 )
                 result = await session.execute(milestone_query)
                 milestone_count = result.scalar_one() or 0

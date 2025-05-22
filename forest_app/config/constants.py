@@ -5,10 +5,41 @@ Centralized configuration of quantitative and qualitative parameters
 used throughout Forest OS. (Version: 2025-04-25 - Reconciled with Rationales)
 """
 
-import logging
-import os
+try:
+    import os
+except ImportError as e:
+    import sys
+    print(f"Failed to import os: {e}", file=sys.stderr)
+    class os:
+        @staticmethod
+        def getenv(key, default=None):
+            return default
+        @staticmethod
+        def path():
+            class Path:
+                @staticmethod
+                def dirname(_):
+                    return '.'
+                @staticmethod
+                def join(a, b):
+                    return f"{a}/{b}"
+            return Path
+
+try:
+    import logging
+except ImportError as e:
+    import sys
+    print(f"Failed to import logging: {e}", file=sys.stderr)
+    class logging:
+        @staticmethod
+        def error(msg):
+            print(f"ERROR: {msg}")
+
 from typing import (  # Use Final for true constants if desired (Python 3.8+)
-    Dict, Final, Tuple)
+    Dict,
+    Final,
+    Tuple,
+)
 
 # =====================================================================
 # Environment & Paths
@@ -45,7 +76,7 @@ MIN_PASSWORD_LENGTH: Final[int] = 8
 MAX_CODENAME_LENGTH: Final[int] = 60
 
 # Add missing constant
-ORCHESTRATOR_HEARTBEAT_SEC: Final[int] = 30  # Default heartbeat interval
+ORCHESTRATOR_HEARTBEAT_SEC = 30  # Default heartbeat interval in seconds
 # RATIONALE: Prevents excessively long codenames, ensures reasonable length for display/storage.
 
 # =====================================================================
@@ -317,3 +348,9 @@ METRICS_MOMENTUM_ALPHA: Final[float] = 0.3
 constants_logger = logging.getLogger(__name__ + ".constants")
 constants_logger.info("Forest OS Constants Loaded.")
 # Add validation checks here if needed
+
+# Add missing constants for onboarding and LLM integration
+EVENT_TYPE_CONTEXT_ADDED = "context_added"
+LLM_ENDPOINT_HTA_GENERATION = "hta_generation"
+PROMPT_VERSION_HTA_GENERATION = "v1"
+EVENT_TYPE_MANIFEST_GENERATED = "manifest_generated"

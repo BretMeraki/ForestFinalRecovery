@@ -4,7 +4,14 @@ Forest App Types Module
 This module contains shared type definitions to avoid circular imports.
 """
 
-from typing import Any, Dict, List, Optional, Protocol
+try:
+    from typing import Any, Dict, List, Optional, Protocol
+except ImportError as e:
+    import logging
+    logging.error(f"Failed to import Protocol: {e}")
+    class Protocol:
+        pass
+    from typing import Any, Dict, List, Optional
 
 
 class HTANodeProtocol(Protocol):

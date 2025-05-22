@@ -6,15 +6,16 @@ to reduce code duplication and standardize error handling across the application
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.declarative import DeclarativeMeta
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
+T = TypeVar("T", bound=Any)  # Consider binding to Base if available
 
 
 def safe_db_operation(
@@ -24,7 +25,7 @@ def safe_db_operation(
     integrity_message: Optional[str] = None,
     default_error_message: str = "Database operation failed",
     log_result: bool = False,
-) -> Callable:
+) -> Callable[..., Any]:  # type: ignore[return]
     """
     Decorator for database operations with standardized error handling.
 
@@ -40,8 +41,8 @@ def safe_db_operation(
         Decorator function that wraps database operations with error handling
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        def wrapper(*args, **kwargs) -> T:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:  # type: ignore[return]
+        def wrapper(*args, **kwargs) -> Any:
             try:
                 result = func(*args, **kwargs)
                 if log_result:
@@ -162,3 +163,39 @@ def get_or_404(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service unavailable. Please try again later.",
         ) from e
+
+
+def get_by_id(session: Session, model: Type[T], id_: Any) -> T | None:
+    # Explicitly return None if not found
+    result = session.query(model).get(id_)
+    if result is not None:
+        return result
+    return None
+
+
+def get_all(session: Session, model: Type[T]) -> list[T]:
+    # Explicitly return an empty list if nothing found
+    results = session.query(model).all()
+    return results
+
+
+def get_first(session: Session, model: Type[T], **filters) -> T | None:
+    # Explicitly return None if not found
+    result = session.query(model).filter_by(**filters).first()
+    if result is not None:
+        return result
+    return None
+
+
+def run_query(session: Session, model: Type[T], query_fn: Callable[[Any], Any]) -> Any:
+    # Use type: ignore if type checker complains about model type
+    query = session.query(model)  # type: ignore[arg-type]  # Model is a mapped class
+    return query_fn(query)
+
+
+def get_with_custom_filter(session: Session, model: Type[T], filter_fn: Callable[[Any], Any]) -> list[T]:
+    query = session.query(model)  # type: ignore[arg-type]  # Model is a mapped class
+    results = filter_fn(query)
+    if results is None:
+        return []
+    return results

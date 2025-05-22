@@ -4,16 +4,22 @@ import logging
 import streamlit as st
 
 # Import centralized constants
-from forest_app.config.app_constants import (KEY_ACCESS_TOKEN,
-                                             KEY_CURRENT_TASK, KEY_DATA,
-                                             KEY_ERROR, KEY_ERROR_MESSAGE,
-                                             KEY_HTA_STATE, KEY_MESSAGES,
-                                             KEY_MILESTONES,
-                                             KEY_ONBOARDING_STATUS,
-                                             KEY_PENDING_CONFIRMATION,
-                                             KEY_STATUS_CODE,
-                                             KEY_USER_INFO_EMAIL,
-                                             KEY_USER_INFO_ID)
+from forest_app.config.app_constants import (
+    KEY_ACCESS_TOKEN,
+    KEY_CURRENT_TASK,
+    KEY_DATA,
+    KEY_ERROR,
+    KEY_ERROR_MESSAGE,
+    KEY_HTA_STATE,
+    KEY_MESSAGES,
+    KEY_MILESTONES,
+    KEY_ONBOARDING_STATUS,
+    KEY_PENDING_CONFIRMATION,
+    KEY_STATUS_CODE,
+    KEY_USER_INFO_EMAIL,
+    KEY_USER_INFO_ID,
+)
+
 # Update relative import to absolute
 from forest_app.front_end.api_client import call_forest_api
 

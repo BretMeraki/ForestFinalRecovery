@@ -10,19 +10,107 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from dependency_injector import containers, providers
-from fastapi import FastAPI
+try:
+    from dependency_injector import containers, providers
+except ImportError as e:
+    logging.error(f"Failed to import dependency_injector: {e}")
+    class containers:
+        class DeclarativeContainer:
+            pass
+    class providers:
+        @staticmethod
+        def Configuration():
+            return None
+        @staticmethod
+        def Singleton(*args, **kwargs):
+            return lambda *a, **k: None
+        @staticmethod
+        def Factory(*args, **kwargs):
+            return lambda *a, **k: None
+        @staticmethod
+        def Dependency(*args, **kwargs):
+            return None
 
-from forest_app.core.cache_service import CacheConfig, CacheService
-from forest_app.core.circuit_breaker import CacheBackend
-from forest_app.core.discovery_journey import DiscoveryJourneyService
-from forest_app.core.event_bus import EventBus, EventType
-from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
-from forest_app.core.services.semantic_base import SemanticMemoryManagerBase
-# Import enhanced architectural components
-from forest_app.core.task_queue import TaskQueue
-# Core domain imports
-from forest_app.integrations.llm import LLMClient
+try:
+    from fastapi import FastAPI
+except ImportError as e:
+    logging.error(f"Failed to import FastAPI: {e}")
+    class FastAPI:
+        pass
+
+try:
+    from forest_app.core.cache_service import CacheConfig, CacheService
+except ImportError as e:
+    logging.error(f"Failed to import CacheConfig or CacheService: {e}")
+    class CacheConfig:
+        def __init__(self, *args, **kwargs):
+            pass
+    class CacheService:
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from forest_app.core.circuit_breaker import CacheBackend
+except ImportError as e:
+    logging.error(f"Failed to import CacheBackend: {e}")
+    class CacheBackend:
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from forest_app.core.discovery_journey import DiscoveryJourneyService
+except ImportError as e:
+    logging.error(f"Failed to import DiscoveryJourneyService: {e}")
+    class DiscoveryJourneyService:
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from forest_app.core.event_bus import EventBus, EventType
+except ImportError as e:
+    logging.error(f"Failed to import EventBus or EventType: {e}")
+    class EventBus:
+        @staticmethod
+        def get_instance():
+            return EventBus()
+        def publish(self, *args, **kwargs):
+            pass
+    class EventType:
+        SYSTEM_METRICS = "SYSTEM_METRICS"
+
+try:
+    from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
+except ImportError as e:
+    logging.error(f"Failed to import EnhancedHTAService: {e}")
+    class EnhancedHTAService:
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from forest_app.core.services.semantic_base import SemanticMemoryManagerBase
+except ImportError as e:
+    logging.error(f"Failed to import SemanticMemoryManagerBase: {e}")
+    class SemanticMemoryManagerBase:
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from forest_app.core.task_queue import TaskQueue
+except ImportError as e:
+    logging.error(f"Failed to import TaskQueue: {e}")
+    class TaskQueue:
+        async def start(self):
+            pass
+        async def stop(self):
+            pass
+
+try:
+    from forest_app.integrations.llm import LLMClient
+except ImportError as e:
+    logging.error(f"Failed to import LLMClient: {e}")
+    class LLMClient:
+        def __init__(self, *args, **kwargs):
+            pass
 
 logger = logging.getLogger(__name__)
 

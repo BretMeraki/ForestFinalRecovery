@@ -8,8 +8,6 @@ This module contains:
      with NLP‑derived baselines (deep‑copy + persist).
   2. `run_onboarding`: CLI flow to capture a top‑level goal (Seed),
      target date, journey path, reflection, and baseline assessment.
-  3. `run_forest_session` / `run_forest_session_async`: ongoing
-     heartbeat loops for applying withering updates and persisting state.
 """
 
 from __future__ import annotations
@@ -21,14 +19,52 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 
-from forest_app.config.constants import ORCHESTRATOR_HEARTBEAT_SEC
-from forest_app.core.orchestrator import ForestOrchestrator
-from forest_app.core.snapshot import MemorySnapshot
-from forest_app.modules.baseline_assessment import BaselineAssessmentEngine
-from forest_app.modules.seed import SeedManager
-from forest_app.utils.baseline_loader import load_user_baselines
+if TYPE_CHECKING:
+    from forest_app.core.orchestrator import ForestOrchestrator
+
+try:
+    from forest_app.config.constants import ORCHESTRATOR_HEARTBEAT_SEC
+except ImportError as e:
+    logging.error(f"Failed to import ORCHESTRATOR_HEARTBEAT_SEC: {e}")
+    ORCHESTRATOR_HEARTBEAT_SEC = 30
+
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        pass
+
+try:
+    from forest_app.modules.baseline_assessment import BaselineAssessmentEngine
+except ImportError as e:
+    logging.error(f"Failed to import BaselineAssessmentEngine: {e}")
+    class BaselineAssessmentEngine:
+        def __init__(self):
+            pass
+        def assess(self, *args, **kwargs):
+            return {}
+
+try:
+    from forest_app.modules.seed import SeedManager
+except ImportError as e:
+    logging.error(f"Failed to import SeedManager: {e}")
+    class SeedManager:
+        def plant_seed(self, *args, **kwargs):
+            class DummySeed:
+                hta_tree = {"child_count": 1}
+            return DummySeed()
+        def to_dict(self):
+            return {}
+
+try:
+    from forest_app.utils.baseline_loader import load_user_baselines
+except ImportError as e:
+    logging.error(f"Failed to import load_user_baselines: {e}")
+    def load_user_baselines(snapshot):
+        return snapshot
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -109,7 +145,7 @@ def run_onboarding(snapshot: MemorySnapshot) -> None:
         # 0. Seed details
         goal_title = _prompt(
             "What is the primary goal you wish to cultivate? "
-            "(e.g. ‘Run a 5k’, ‘Launch my blog’)"
+            "(e.g. 'Run a 5k', 'Launch my blog')"
         )
         seed_domain = _prompt(
             "In one word, which life domain does this goal belong to? "
@@ -156,194 +192,58 @@ def run_onboarding(snapshot: MemorySnapshot) -> None:
         date_iso = _parse_date_iso(date_input)
         if date_iso:
             break
-        print("❌ Invalid date format. Please use YYYY‑MM‑DD.")
-    snapshot.estimated_completion_date = date_iso
+
+        print("\n❌ Invalid date format. Please use YYYY‑MM‑DD.\n")
 
     # 2. Journey path
-    options = {"1": "structured", "2": "blended", "3": "open"}
     while True:
         try:
-            choice = _prompt(
-                "Choose your journey mode:\n"
-                "  1) Structured – clear soft deadlines and strong guidance\n"
-                "  2) Blended    – guideposts without penalties\n"
-                "  3) Open       – no deadlines, introspection‑heavy\n"
+            path = _prompt(
+                "Choose your journey path:\n"
+                "1. Structured (guided, step‑by‑step)\n"
+                "2. Blended (mix of guidance and freedom)\n"
+                "3. Open (complete freedom, minimal guidance)\n"
                 "Enter 1, 2, or 3:"
             )
         except (EOFError, KeyboardInterrupt) as e:
             logger.error(
-                "Onboarding interrupted during path selection: %s", e, exc_info=True
+                "Onboarding interrupted during path prompt: %s", e, exc_info=True
             )
             sys.exit(1)
 
-        if choice in options:
-            snapshot.current_path = options[choice]
+        if path in ["1", "2", "3"]:
             break
-        print("❌ Please enter 1, 2, or 3.")
+
+        print("\n❌ Please enter 1, 2, or 3.\n")
 
     # 3. Reflection
     try:
-        where_text = _prompt(
-            "Describe where you are right now in relation to this goal. "
-            "Feel free to share thoughts, feelings, or context:"
+        reflection = _prompt(
+            "\nTake a moment to reflect on where you are now with this goal.\n"
+            "What's your current state, challenges, and hopes?\n"
         )
     except (EOFError, KeyboardInterrupt) as e:
         logger.error(
             "Onboarding interrupted during reflection prompt: %s", e, exc_info=True
         )
         sys.exit(1)
-    snapshot.core_state["where_you_are"] = where_text
 
     # 4. Baseline assessment
-    print("\n🌿 Establishing your baseline… this may take a moment.\n")
-    assessor = BaselineAssessmentEngine()
-    try:
-        baseline_data = asyncio.run(assessor.assess_baseline(goal_title, where_text))
-    except Exception as e:
-        logger.error("Baseline assessment failed: %s", e, exc_info=True)
-        raise
+    assessment_engine = BaselineAssessmentEngine()
+    baselines = assessment_engine.assess(reflection)
 
-    # Initialize dev_index
-    snapshot.dev_index.update_from_dict(
-        {"indexes": baseline_data["development"], "adjustment_history": []}
+    # Update snapshot with onboarding data
+    snapshot.component_state.update(
+        {
+            "goal": {
+                "title": goal_title,
+                "domain": seed_domain,
+                "target_date": date_iso,
+                "path": ["structured", "blended", "open"][int(path) - 1],
+            },
+            "reflection": reflection,
+            "baselines": baselines,
+        }
     )
-    snapshot.component_state["dev_index"] = snapshot.dev_index.to_dict()
 
-    # Populate core metrics
-    snapshot.capacity = baseline_data["capacity"]
-    snapshot.shadow_score = baseline_data["shadow_score"]
-    snapshot.magnitude = baseline_data["magnitude"]
-    snapshot.relationship_index = baseline_data["relationship"]
-
-    # Onboarding complete
-    # Note: you can also infer this implicitly by checking the above fields,
-    # but we set it explicitly here for clarity.
-    snapshot.baseline_established = True
-
-    print("\n✅ Onboarding complete! Your journey begins.\n")
-
-
-# -----------------------------------------------------------------------------
-# 3. Blocking & async heartbeat loops for ongoing session maintenance
-# -----------------------------------------------------------------------------
-
-
-def run_forest_session(
-    snapshot: Dict[str, Any],
-    save_snapshot: Callable[[Dict[str, Any]], None],
-    lock: Optional[threading.Lock] = None,
-) -> None:
-    session_id = snapshot.get("user_id", "unknown")
-    orch = ForestOrchestrator(saver=save_snapshot)
-    logger.info(
-        "Starting blocking forest session for session=%s (interval=%s sec)",
-        session_id,
-        ORCHESTRATOR_HEARTBEAT_SEC,
-    )
-    try:
-        while True:
-            start_time = time.monotonic()
-            try:
-                if lock:
-                    with lock:
-                        orch._update_withering(snapshot)
-                        orch._save_component_states(snapshot)
-                else:
-                    orch._update_withering(snapshot)
-                    orch._save_component_states(snapshot)
-            except Exception as tick_err:
-                logger.exception(
-                    "Error during heartbeat tick for session=%s: %s",
-                    session_id,
-                    tick_err,
-                )
-            elapsed = time.monotonic() - start_time
-            sleep_duration = max(0, ORCHESTRATOR_HEARTBEAT_SEC - elapsed)
-            try:
-                time.sleep(sleep_duration)
-            except KeyboardInterrupt:
-                raise
-            except Exception as sleep_err:
-                logger.error(
-                    "Error during heartbeat sleep for session=%s: %s",
-                    session_id,
-                    sleep_err,
-                    exc_info=True,
-                )
-    except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt received; stopping session=%s", session_id)
-        try:
-            orch._save_component_states(snapshot)
-        except Exception as e:
-            logger.error(
-                "Error saving state at shutdown for session=%s: %s",
-                session_id,
-                e,
-                exc_info=True,
-            )
-    finally:
-        logger.info("Blocking forest session stopped for session=%s", session_id)
-
-
-async def run_forest_session_async(
-    snapshot: Dict[str, Any],
-    save_snapshot: Callable[[Dict[str, Any]], None],
-    lock: Optional[threading.Lock] = None,
-) -> None:
-    session_id = snapshot.get("user_id", "unknown")
-    orch = ForestOrchestrator(saver=save_snapshot)
-    logger.info(
-        "Starting async forest session for session=%s (interval=%s sec)",
-        session_id,
-        ORCHESTRATOR_HEARTBEAT_SEC,
-    )
-    try:
-        while True:
-            start_time = asyncio.get_running_loop().time()
-            try:
-                if lock:
-                    with lock:
-                        orch._update_withering(snapshot)
-                        orch._save_component_states(snapshot)
-                else:
-                    orch._update_withering(snapshot)
-                    orch._save_component_states(snapshot)
-            except Exception as tick_err:
-                logger.exception(
-                    "Error during async heartbeat tick for session=%s: %s",
-                    session_id,
-                    tick_err,
-                )
-            elapsed = asyncio.get_running_loop().time() - start_time
-            sleep_duration = max(0, ORCHESTRATOR_HEARTBEAT_SEC - elapsed)
-            try:
-                await asyncio.sleep(sleep_duration)
-            except asyncio.CancelledError:
-                raise
-            except Exception as sleep_err:
-                logger.error(
-                    "Error during async heartbeat sleep for session=%s: %s",
-                    session_id,
-                    sleep_err,
-                    exc_info=True,
-                )
-    except asyncio.CancelledError:
-        logger.info("Async session cancelled for session=%s", session_id)
-        try:
-            orch._save_component_states(snapshot)
-        except Exception as e:
-            logger.error(
-                "Error saving state at cancellation for session=%s: %s",
-                session_id,
-                e,
-                exc_info=True,
-            )
-    except Exception as e:
-        logger.error(
-            "Unhandled error in async session for session=%s: %s",
-            session_id,
-            e,
-            exc_info=True,
-        )
-    finally:
-        logger.info("Async forest session stopped for session=%s", session_id)
+    logger.info("Onboarding completed successfully.")

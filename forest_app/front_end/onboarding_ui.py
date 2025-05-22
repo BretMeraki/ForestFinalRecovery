@@ -5,16 +5,21 @@ from typing import Callable, Optional
 import streamlit as st
 
 # Import constants from the central app_constants module
-from forest_app.config.app_constants import (KEY_CURRENT_TASK, KEY_DATA,
-                                             KEY_ERROR, KEY_ERROR_MESSAGE,
-                                             KEY_MESSAGES,
-                                             KEY_ONBOARDING_STATUS,
-                                             KEY_PENDING_CONFIRMATION,
-                                             KEY_STATUS_CODE,
-                                             MIN_PASSWORD_LENGTH,
-                                             ONBOARDING_STATUS_COMPLETED,
-                                             ONBOARDING_STATUS_NEEDS_CONTEXT,
-                                             ONBOARDING_STATUS_NEEDS_GOAL)
+from forest_app.config.app_constants import (
+    KEY_CURRENT_TASK,
+    KEY_DATA,
+    KEY_ERROR,
+    KEY_ERROR_MESSAGE,
+    KEY_MESSAGES,
+    KEY_ONBOARDING_STATUS,
+    KEY_PENDING_CONFIRMATION,
+    KEY_STATUS_CODE,
+    MIN_PASSWORD_LENGTH,
+    ONBOARDING_STATUS_COMPLETED,
+    ONBOARDING_STATUS_NEEDS_CONTEXT,
+    ONBOARDING_STATUS_NEEDS_GOAL,
+)
+
 # Update relative import to absolute
 from forest_app.front_end.api_client import call_forest_api
 

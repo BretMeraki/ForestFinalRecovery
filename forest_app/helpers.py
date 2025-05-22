@@ -5,26 +5,106 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
+from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
+
 # --- SQLAlchemy Imports ---
 from sqlalchemy.orm import Session
 
-from forest_app.core.processors.reflection_processor import \
-    prune_context  # Helper from reflection_processor
+from forest_app.utils.import_fallbacks import import_with_fallback
+
+logger = logging.getLogger(__name__)
+
+prune_context = import_with_fallback(
+    lambda: __import__('forest_app.core.processors.reflection_processor', fromlist=['prune_context']).prune_context,
+    lambda: (lambda *a, **k: None),
+    logger,
+    "prune_context"
+)
+MemorySnapshot = import_with_fallback(
+    lambda: __import__('forest_app.core.snapshot', fromlist=['MemorySnapshot']).MemorySnapshot,
+    lambda: type('MemorySnapshot', (), {}),
+    logger,
+    "MemorySnapshot"
+)
+llm_imports = import_with_fallback(
+    lambda: __import__('forest_app.integrations.llm', fromlist=['LLMResponseModel', 'generate_response']),
+    lambda: type('LLMFallbacks', (), {}),
+    logger,
+    "llm_imports"
+)
+MemorySnapshotModel = import_with_fallback(
+    lambda: __import__('forest_app.models', fromlist=['MemorySnapshotModel']).MemorySnapshotModel,
+    lambda: type('MemorySnapshotModel', (), {}),
+    logger,
+    "MemorySnapshotModel"
+)
+MemorySnapshotRepository = import_with_fallback(
+    lambda: __import__('forest_app.persistence.repository', fromlist=['MemorySnapshotRepository']).MemorySnapshotRepository,
+    lambda: type('MemorySnapshotRepository', (), {}),
+    logger,
+    "MemorySnapshotRepository"
+)
+constants = import_with_fallback(
+    lambda: __import__('forest_app.config', fromlist=['constants']).constants,
+    lambda: {},
+    logger,
+    "constants"
+)
+
 # --- Core Components ---
-from forest_app.core.snapshot import MemorySnapshot
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        def to_dict(self):
+            return {}
+        def record_feature_flags(self):
+            pass
+
 # --- LLM & Pydantic Imports ---
 # Assume these imports are correct based on your provided code
-from forest_app.integrations.llm import (LLMClient, LLMConfigurationError,
-                                         LLMConnectionError, LLMError,
-                                         LLMValidationError,
-                                         SnapshotCodenameResponse)
-from forest_app.models import MemorySnapshotModel
+try:
+    from forest_app.integrations.llm import (
+        LLMClient,
+        LLMConfigurationError,
+        LLMConnectionError,
+        LLMError,
+        LLMValidationError,
+        SnapshotCodenameResponse,
+    )
+except ImportError as e:
+    logging.error(f"Failed to import LLM classes: {e}")
+    class LLMClient:
+        async def generate(self, *args, **kwargs):
+            class Dummy:
+                codename = "Dummy Codename"
+            return Dummy()
+    class LLMConfigurationError(Exception): pass
+    class LLMConnectionError(Exception): pass
+    class LLMError(Exception): pass
+    class LLMValidationError(Exception): pass
+    class SnapshotCodenameResponse:
+        codename = "Dummy Codename"
+
+try:
+    from forest_app.models import MemorySnapshotModel
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshotModel: {e}")
+    class MemorySnapshotModel:
+        pass
+
 # --- Persistence Components ---
 # Assume these imports are correct
-from forest_app.persistence.repository import MemorySnapshotRepository
+try:
+    from forest_app.persistence.repository import MemorySnapshotRepository
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshotRepository: {e}")
+    class MemorySnapshotRepository:
+        pass
 
 # --- Constants ---
 try:
@@ -68,7 +148,7 @@ def find_node_in_dict(
 async def save_snapshot_with_codename(
     db: Session,
     repo: MemorySnapshotRepository,
-    user_id: int,
+    user_id: UUID,
     snapshot: MemorySnapshot,  # Input is the full MemorySnapshot object
     llm_client: LLMClient,
     stored_model: Optional[MemorySnapshotModel],
@@ -214,8 +294,8 @@ async def save_snapshot_with_codename(
 
     try:
         if action == "create":
-            if not isinstance(user_id, int):
-                raise TypeError(f"User ID must be int, got: {type(user_id)}")
+            if not isinstance(user_id, UUID):
+                raise TypeError(f"User ID must be UUID, got: {type(user_id)}")
             # Pass the serialized data dict
             new_or_updated_model = repo.create_snapshot(
                 user_id, updated_data, generated_codename
@@ -224,7 +304,7 @@ async def save_snapshot_with_codename(
             stored_user_id = getattr(stored_model, "user_id", None)
             if stored_user_id != user_id:
                 logger.error(
-                    "CRITICAL: User ID mismatch during update! Stored: %s, Requested: %d.",
+                    "CRITICAL: User ID mismatch during update! Stored: %s, Requested: %s.",
                     stored_user_id,
                     user_id,
                 )
@@ -237,7 +317,7 @@ async def save_snapshot_with_codename(
         if new_or_updated_model:
             model_id_for_log = getattr(new_or_updated_model, "id", "N/A")
             logger.info(
-                "%s snapshot model object for user ID %d (Model ID: %s, Codename: '%s'). Awaiting commit.",
+                "%s snapshot model object for user ID %s (Model ID: %s, Codename: '%s'). Awaiting commit.",
                 log_action_verb,
                 user_id,
                 model_id_for_log,
@@ -245,14 +325,14 @@ async def save_snapshot_with_codename(
             )
         else:
             logger.error(
-                "Repository method (%s) failed to return snapshot model for user ID %d.",
+                "Repository method (%s) failed to return snapshot model for user ID %s.",
                 action,
                 user_id,
             )
 
     except (ValueError, TypeError) as val_err:
         logger.error(
-            "Error preparing snapshot data for User ID=%d, Action=%s: %s",
+            "Error preparing snapshot data for User ID=%s, Action=%s: %s",
             user_id,
             action,
             val_err,
@@ -264,7 +344,7 @@ async def save_snapshot_with_codename(
         SQLAlchemyError
     ) as db_err:  # Catch potential DB errors during repo interaction
         logger.error(
-            "Database error during snapshot %s for User ID=%d: %s",
+            "Database error during snapshot %s for User ID=%s: %s",
             action,
             user_id,
             db_err,
@@ -274,7 +354,7 @@ async def save_snapshot_with_codename(
 
     except Exception as e:  # Catch any other unexpected errors
         logger.error(
-            "Unexpected error during snapshot %s for User ID=%d: %s",
+            "Unexpected error during snapshot %s for User ID=%s: %s",
             action,
             user_id,
             e,

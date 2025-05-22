@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
 
@@ -24,7 +25,7 @@ class DesireBase(BaseModel):
 class FinancialMetricsBase(BaseModel):
     """Financial Metrics Base model."""
 
-    user_id: str
+    user_id: UUID
     score: float
     last_updated: Optional[datetime] = None
     metrics: Dict[str, Any] = Field(default_factory=dict)
@@ -32,8 +33,10 @@ class FinancialMetricsBase(BaseModel):
 
     @validator("user_id")
     def user_id_must_not_be_empty(cls, v):
-        if v is None or v.strip() == "":
+        if v is None or (isinstance(v, str) and v.strip() == ""):
             raise ValueError("user_id must not be empty")
+        if not isinstance(v, UUID):
+            raise ValueError("user_id must be a UUID")
         return v
 
 

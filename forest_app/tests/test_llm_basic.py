@@ -4,8 +4,7 @@ Basic tests for the LLM service implementation.
 
 from unittest.mock import MagicMock, patch
 
-from forest_app.integrations.llm_service import (GoogleGeminiService,
-                                                 create_llm_service)
+from forest_app.integrations.llm_service import GoogleGeminiService, create_llm_service
 
 
 def test_create_llm_service():

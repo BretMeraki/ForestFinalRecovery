@@ -9,44 +9,42 @@ import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+
 # --- Pydantic Imports ---
 from pydantic import BaseModel  # Import base pydantic needs
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from forest_app.core.discovery_journey.integration_utils import (
-    infuse_recommendations_into_snapshot, track_task_completion_for_discovery)
-from forest_app.core.integrations.discovery_integration import \
-    get_discovery_journey_service
+    infuse_recommendations_into_snapshot,
+    track_task_completion_for_discovery,
+)
+from forest_app.core.integrations.discovery_integration import (
+    get_discovery_journey_service,
+)
 from forest_app.core.orchestrator import ForestOrchestrator
-from forest_app.core.auth.security_utils import get_current_active_user
-from forest_app.core.memory.memory_snapshot import MemorySnapshot
+from forest_app.core.security import get_current_active_user
+from forest_app.core.snapshot import MemorySnapshot
 from forest_app.dependencies import get_orchestrator
+
 # --- Dependencies & Models ---
-from forest_app.database.session import get_db
-from forest_app.models import UserModel
+from forest_app.persistence.database import get_db
+from forest_app.persistence.models import UserModel
 from forest_app.persistence.repository import MemorySnapshotRepository
 
 # <<< --- END ADDED IMPORT --- >>>
 
-
-# --- REMOVED INCORRECT IMPORT ---
-# from forest_app.core.pydantic_models import HTAStateResponse
-try:
-    from forest_app.config import constants
-except ImportError:
-
-    class ConstantsPlaceholder:
-        ONBOARDING_STATUS_NEEDS_GOAL = "needs_goal"
-        ONBOARDING_STATUS_NEEDS_CONTEXT = "needs_context"
-        ONBOARDING_STATUS_COMPLETED = "completed"
-
-    constants = ConstantsPlaceholder()
-
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+constants = import_with_fallback(
+    lambda: __import__('forest_app.config', fromlist=['constants']).constants,
+    lambda: {},
+    logger,
+    "constants"
+)
 
 # --- Pydantic Models DEFINED LOCALLY ---
 class HTAStateResponse(BaseModel):
@@ -62,6 +60,19 @@ class HTAStateResponse(BaseModel):
 
 
 # --- End Pydantic Models ---
+
+
+# Helper functions for snapshot_data and id
+
+def get_snapshot_data(model):
+    if hasattr(model, 'snapshot_data'):
+        return model.snapshot_data
+    return None
+
+def get_snapshot_id(model):
+    if hasattr(model, 'id'):
+        return model.id
+    return None
 
 
 @router.get(
@@ -80,11 +91,11 @@ async def get_hta_state(
         stored_model = repo.get_latest_snapshot(user_id)
         if not stored_model:
             return HTAStateResponse(hta_tree=None, message="No active session found.")
-        if not stored_model.snapshot_data:
+        if not get_snapshot_data(stored_model):
             return HTAStateResponse(hta_tree=None, message="Session data missing.")
 
         try:
-            snapshot = MemorySnapshot.from_dict(stored_model.snapshot_data)
+            snapshot = MemorySnapshot.from_dict(get_snapshot_data(stored_model))
         except Exception as load_err:  # noqa: W0718
             # Broad catch is intentional to ensure FastAPI endpoint robustness and to log unexpected errors.
             raise HTTPException(

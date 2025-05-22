@@ -1,6 +1,6 @@
 """forest_app/modules/soft_deadline_manager.py
 
-Assigns and manages *soft deadlines* for tasks, driven by the user’s
+Assigns and manages *soft deadlines* for tasks, driven by the user's
 estimated completion date and journey path (structured, blended, open).
 Respects the SOFT_DEADLINES feature flag.
 
@@ -19,29 +19,17 @@ The manager writes an ISO‑8601 `soft_deadline` string into each task
 
 from __future__ import annotations
 
-import logging  # Added logging import
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 import random
 from datetime import datetime, timedelta, timezone  # Added timezone
 from typing import Any, Dict, Iterable, List, Optional  # Added Optional
+from forest_app.utils.import_fallbacks import import_with_fallback, get_feature_flag_tools
 
 # --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("soft_deadline_init")
-    logger.warning(
-        "Feature flags module not found in soft_deadline_manager. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        SOFT_DEADLINES = "FEATURE_ENABLE_SOFT_DEADLINES"  # Define the specific flag
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
+Feature, is_enabled = get_feature_flag_tools(logger)
 
 # Assume MemorySnapshot might not be available if core snapshot system changes
 try:
@@ -56,9 +44,6 @@ except ImportError:
         estimated_completion_date: Optional[str] = None
         task_backlog: List[Dict[str, Any]] = []
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -282,7 +267,7 @@ def schedule_backlog(snapshot: MemorySnapshot, *, override_existing=False) -> No
 
 def hours_until_deadline(task: Dict[str, Any]) -> float:
     """
-    Return hours until this task’s soft deadline.
+    Return hours until this task's soft deadline.
     Returns float('inf') if no deadline or if SOFT_DEADLINES feature is disabled.
     """
     # --- Feature Flag Check ---

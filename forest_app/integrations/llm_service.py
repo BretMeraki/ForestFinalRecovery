@@ -17,8 +17,17 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import (Any, Awaitable, Callable, Dict, Generic, List, Optional,
-                    Type, TypeVar)
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+)
 
 import aiohttp
 import backoff
@@ -27,8 +36,7 @@ from pydantic import BaseModel, Field
 # Import auxiliary services
 try:
     from forest_app.integrations.context_trimmer import ContextTrimmer
-    from forest_app.integrations.prompt_augmentation import \
-        PromptAugmentationService
+    from forest_app.integrations.prompt_augmentation import PromptAugmentationService
 
     aux_services_import_ok = True
 except ImportError:
@@ -42,10 +50,13 @@ try:
     import google.generativeai as genai
     from google.api_core import exceptions as google_api_exceptions
     from google.generativeai import protos
-    from google.generativeai.types import (ContentDict,
-                                           GenerateContentResponse,
-                                           GenerationConfig,
-                                           HarmBlockThreshold, HarmCategory)
+    from google.generativeai.types import (
+        ContentDict,
+        GenerateContentResponse,
+        GenerationConfig,
+        HarmBlockThreshold,
+        HarmCategory,
+    )
 
     google_import_ok = True
 except ImportError:

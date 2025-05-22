@@ -3,39 +3,27 @@
 import json
 import logging
 from typing import Any, Dict, List, Optional  # Added Any
-
-# --- Import Feature Flags ---
-# Assuming feature_flags.py is accessible from this module's path
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger.warning(
-        "Feature flags module not found in archetype. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        ARCHETYPES = "FEATURE_ENABLE_ARCHETYPES"  # Define the specific flag used here
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function - default to True or False
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True  # Or False, depending on desired fallback
-
-
-# --- Import Constants ---
-from forest_app.config.constants import (ARCHETYPE_ACTIVATION_THRESHOLD,
-                                         ARCHETYPE_CONTEXT_FACTOR_CAPACITY,
-                                         ARCHETYPE_CONTEXT_FACTOR_SHADOW,
-                                         ARCHETYPE_DOMINANCE_FACTOR,
-                                         DEFAULT_ARCHETYPE_WEIGHT,
-                                         DEFAULT_SNAPSHOT_CAPACITY,
-                                         DEFAULT_SNAPSHOT_SHADOW,
-                                         HIGH_SHADOW_THRESHOLD,
-                                         LOW_CAPACITY_THRESHOLD)
+from forest_app.utils.import_fallbacks import import_with_fallback, get_feature_flag_tools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# --- Import Feature Flags ---
+# Assuming feature_flags.py is accessible from this module's path
+Feature, is_enabled = get_feature_flag_tools(logger)
+
+# --- Import Constants ---
+from forest_app.config.constants import (
+    ARCHETYPE_ACTIVATION_THRESHOLD,
+    ARCHETYPE_CONTEXT_FACTOR_CAPACITY,
+    ARCHETYPE_CONTEXT_FACTOR_SHADOW,
+    ARCHETYPE_DOMINANCE_FACTOR,
+    DEFAULT_ARCHETYPE_WEIGHT,
+    DEFAULT_SNAPSHOT_CAPACITY,
+    DEFAULT_SNAPSHOT_SHADOW,
+    HIGH_SHADOW_THRESHOLD,
+    LOW_CAPACITY_THRESHOLD,
+)
 
 
 class Archetype:

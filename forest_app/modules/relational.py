@@ -4,25 +4,13 @@ import json
 import logging
 import re
 from typing import Any, Dict, Optional  # Added List
+from forest_app.utils.import_fallbacks import import_with_fallback, get_feature_flag_tools
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("relational_init")
-    logger.warning(
-        "Feature flags module not found in relational.py. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        RELATIONAL = "FEATURE_ENABLE_RELATIONAL"  # Define the specific flag
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
+Feature, is_enabled = get_feature_flag_tools(logger)
 
 # --- Pydantic Import ---
 try:
@@ -49,8 +37,7 @@ except ImportError:
 # --- LLM Import ---
 try:
     # First try to import from the real implementation
-    from forest_app.integrations.llm import (LLMClient, LLMError,
-                                             LLMValidationError)
+    from forest_app.integrations.llm import LLMClient, LLMError, LLMValidationError
 
     llm_import_ok = True
 except ImportError as e:
@@ -60,14 +47,16 @@ except ImportError as e:
     llm_import_ok = False
 
     # Import centralized fallback implementations
-    from forest_app.integrations.llm_fallbacks import (LLMClient, LLMError,
-                                                       LLMValidationError)
+    from forest_app.integrations.llm_fallbacks import (
+        LLMClient,
+        LLMError,
+        LLMValidationError,
+    )
 
     # These classes are now imported from llm_fallbacks
     # No need to redefine them here
 
 
-logger = logging.getLogger(__name__)
 # Rely on global config for level
 
 # --- Define Response Models ---

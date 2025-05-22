@@ -4,8 +4,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from forest_app.modules.shared_models import (DesireBase, FinancialMetricsBase,
-                                              HTANodeBase, PatternBase)
+from forest_app.modules.shared_models import (
+    DesireBase,
+    FinancialMetricsBase,
+    HTANodeBase,
+    PatternBase,
+)
 
 
 def test_hta_node_base_creation():

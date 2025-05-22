@@ -10,32 +10,20 @@ from uuid import UUID
 # but removed from user_id logic here. Keeping import for now.
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
 # --- ADD THIS IMPORT ---
 from sqlalchemy.orm.attributes import flag_modified
 
 # --- Models ---
-try:
-    # ** CHANGE 1: Corrected model names in import **
-    from forest_app.models import (MemorySnapshotModel,
-                                   ReflectionLogModel,
-                                   TaskFootprintModel, UserModel)
-except ImportError:
-    # This block should ideally NOT be reached now if PYTHONPATH and model names are correct
-    logging.critical("Failed to import ORM models from forest_app.persistence.models")
-
-    # Define dummy classes only if absolutely necessary for testing parts in isolation
-    class MemorySnapshotModel:
-        pass
-
-    class TaskFootprintModel:
-        pass  # Renamed dummy class for consistency
-
-    class ReflectionLogModel:
-        pass  # Renamed dummy class for consistency
-
-    class UserModel:
-        pass
-
+from forest_app.persistence.models import (
+    UserModel,
+    MemorySnapshotModel,
+    HTATreeModel,
+    HTANodeModel,
+    TaskFootprintModel,
+    ReflectionLogModel,
+)
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # --- Logging ---
 logger = logging.getLogger(__name__)
@@ -178,16 +166,16 @@ class MemorySnapshotRepository:
         self.db = db
 
     def create_snapshot(
-        self, user_id: int, snapshot_data: dict, codename: Optional[str] = None
+        self, user_id: UUID, snapshot_data: dict, codename: Optional[str] = None
     ) -> Optional[MemorySnapshotModel]:
         """
         Creates a new MemorySnapshot model instance and adds it to the session.
         **Does NOT commit the transaction.**
         """
-        if not isinstance(user_id, int):
-            logger.error("User ID must be an integer to create a snapshot.")
+        if not isinstance(user_id, UUID):
+            logger.error("User ID must be a UUID to create a snapshot.")
             # Raise TypeError for the endpoint to handle
-            raise TypeError("User ID must be an integer to create a snapshot.")
+            raise TypeError("User ID must be a UUID to create a snapshot.")
 
         now = datetime.utcnow()
         try:
@@ -214,14 +202,14 @@ class MemorySnapshotRepository:
             flag_modified(model, "snapshot_data")
             # --- END ADDED ---
             logger.info(
-                "Added new snapshot object for user ID %d (codename: '%s') to session.",
+                "Added new snapshot object for user ID %s (codename: '%s') to session.",
                 user_id,
                 codename,
             )
             return model
         except SQLAlchemyError as e:
             logger.error(
-                "Database error preparing snapshot model for user ID %d: %s",
+                "Database error preparing snapshot model for user ID %s: %s",
                 user_id,
                 e,
                 exc_info=True,
@@ -229,19 +217,19 @@ class MemorySnapshotRepository:
             raise
         except Exception as e:
             logger.error(
-                "Unexpected error preparing snapshot model for user ID %d: %s",
+                "Unexpected error preparing snapshot model for user ID %s: %s",
                 user_id,
                 e,
                 exc_info=True,
             )
             raise
 
-    def get_latest_snapshot(self, user_id: int) -> Optional[MemorySnapshotModel]:
+    def get_latest_snapshot(self, user_id: UUID) -> Optional[MemorySnapshotModel]:
         """Retrieves the latest MemorySnapshot for the specified user."""
-        if not isinstance(user_id, int):
-            logger.error("User ID must be an integer to get latest snapshot.")
+        if not isinstance(user_id, UUID):
+            logger.error("User ID must be a UUID to get latest snapshot.")
             # Raising error as this indicates a programming issue upstream
-            raise TypeError("User ID must be an integer.")
+            raise TypeError("User ID must be a UUID.")
         try:
             # Determine the field to order by (prefer updated_at if it exists)
             order_by_field = (
@@ -275,7 +263,7 @@ class MemorySnapshotRepository:
                 not hasattr(snapshot, "user_id") or snapshot.user_id != user_id
             ):
                 logger.error(
-                    "Data integrity issue: Retrieved snapshot user_id (%s) mismatch or missing for requested user_id %d",
+                    "Data integrity issue: Retrieved snapshot user_id (%s) mismatch or missing for requested user_id %s",
                     getattr(snapshot, "user_id", "MISSING"),
                     user_id,
                 )
@@ -286,7 +274,7 @@ class MemorySnapshotRepository:
 
         except SQLAlchemyError as e:
             logger.error(
-                "Database error retrieving latest snapshot for user ID %d: %s",
+                "Database error retrieving latest snapshot for user ID %s: %s",
                 user_id,
                 e,
                 exc_info=True,
@@ -294,7 +282,7 @@ class MemorySnapshotRepository:
             raise
         except Exception as e:
             logger.error(
-                "Unexpected error retrieving latest snapshot for user ID %d: %s",
+                "Unexpected error retrieving latest snapshot for user ID %s: %s",
                 user_id,
                 e,
                 exc_info=True,
@@ -339,7 +327,7 @@ class MemorySnapshotRepository:
 
             log_user_id = snapshot_model.user_id
             logger.info(
-                "Prepared update (flagged modified) for snapshot id %s for user ID %d (codename: '%s') in session.",
+                "Prepared update (flagged modified) for snapshot id %s for user ID %s (codename: '%s') in session.",
                 snapshot_model.id,
                 log_user_id,
                 snapshot_model.codename,
@@ -371,11 +359,11 @@ class MemorySnapshotRepository:
             raise
 
     def list_snapshots(
-        self, user_id: int, limit: int = 100
+        self, user_id: UUID, limit: int = 100
     ) -> List[MemorySnapshotModel]:
         """Lists snapshots for a specific user, ordered by most recently created/updated first."""
-        if not isinstance(user_id, int):
-            logger.error("User ID must be an integer to list snapshots.")
+        if not isinstance(user_id, UUID):
+            logger.error("User ID must be a UUID to list snapshots.")
             return []
         try:
             # Determine the field to order by
@@ -409,7 +397,7 @@ class MemorySnapshotRepository:
             return results
         except SQLAlchemyError as e:
             logger.error(
-                "Database error listing snapshots for user ID %d: %s",
+                "Database error listing snapshots for user ID %s: %s",
                 user_id,
                 e,
                 exc_info=True,
@@ -417,7 +405,7 @@ class MemorySnapshotRepository:
             raise
         except Exception as e:
             logger.error(
-                "Unexpected error listing snapshots for user ID %d: %s",
+                "Unexpected error listing snapshots for user ID %s: %s",
                 user_id,
                 e,
                 exc_info=True,
@@ -425,12 +413,12 @@ class MemorySnapshotRepository:
             raise
 
     def get_snapshot_by_id(
-        self, snapshot_id: int, user_id: int
+        self, snapshot_id: int, user_id: UUID
     ) -> Optional[MemorySnapshotModel]:
         """Retrieves a specific snapshot by its ID, ensuring it belongs to the user."""
-        if not isinstance(user_id, int):
-            logger.error("User ID must be an integer to get snapshot by ID.")
-            raise TypeError("User ID must be an integer.")
+        if not isinstance(user_id, UUID):
+            logger.error("User ID must be a UUID to get snapshot by ID.")
+            raise TypeError("User ID must be a UUID.")
         if not isinstance(snapshot_id, int):
             logger.error("Snapshot ID must be an integer.")
             raise TypeError("Snapshot ID must be an integer.")
@@ -457,7 +445,7 @@ class MemorySnapshotRepository:
             return snapshot
         except SQLAlchemyError as e:
             logger.error(
-                "Database error getting snapshot id %s for user ID %d: %s",
+                "Database error getting snapshot id %s for user ID %s: %s",
                 snapshot_id,
                 user_id,
                 e,
@@ -466,7 +454,7 @@ class MemorySnapshotRepository:
             raise
         except Exception as e:
             logger.error(
-                "Unexpected error getting snapshot id %s for user ID %d: %s",
+                "Unexpected error getting snapshot id %s for user ID %s: %s",
                 snapshot_id,
                 user_id,
                 e,
@@ -474,13 +462,13 @@ class MemorySnapshotRepository:
             )
             raise
 
-    def delete_snapshot_by_id(self, snapshot_id: int, user_id: int) -> bool:
+    def delete_snapshot_by_id(self, snapshot_id: int, user_id: UUID) -> bool:
         """
         Deletes a specific snapshot by its ID, ensuring it belongs to the user.
         !! Commits the transaction immediately. !! (Keep commit here as delete is usually atomic)
         """
-        if not isinstance(user_id, int):
-            logger.error("User ID must be an integer to delete snapshot by ID.")
+        if not isinstance(user_id, UUID):
+            logger.error("User ID must be a UUID to delete snapshot by ID.")
             return False
         if not isinstance(snapshot_id, int):
             logger.error("Snapshot ID must be an integer to delete snapshot.")
@@ -495,12 +483,12 @@ class MemorySnapshotRepository:
                 self.db.delete(snapshot_to_delete)
                 self.db.commit()  # Commit deletion
                 logger.info(
-                    "Deleted snapshot id %s for user ID %d", snapshot_id, user_id
+                    "Deleted snapshot id %s for user ID %s", snapshot_id, user_id
                 )
                 return True
             else:
                 logger.warning(
-                    "Snapshot id %s not found or not owned by user ID %d for deletion.",
+                    "Snapshot id %s not found or not owned by user ID %s for deletion.",
                     snapshot_id,
                     user_id,
                 )
@@ -532,7 +520,7 @@ class MemorySnapshotRepository:
 
 # --- ADDED THIS FUNCTION ---
 def get_latest_snapshot_model(
-    user_id: int, db: Session
+    user_id: UUID, db: Session
 ) -> Optional[MemorySnapshotModel]:
     """
     Retrieves the latest MemorySnapshotModel for a given user ID using the provided Session.
@@ -541,9 +529,9 @@ def get_latest_snapshot_model(
           Calls from async FastAPI endpoints will run this in a thread pool. Remove 'await'
           from calls to this function in your endpoint code (e.g., core.py).
     """
-    if not isinstance(user_id, int):
-        logger.error("User ID must be an integer to get latest snapshot model.")
-        raise TypeError("User ID must be an integer.")
+    if not isinstance(user_id, UUID):
+        logger.error("User ID must be a UUID to get latest snapshot model.")
+        raise TypeError("User ID must be a UUID.")
     if not isinstance(db, Session):
         logger.error("Invalid database session provided to get_latest_snapshot_model.")
         raise TypeError("db must be a SQLAlchemy Session.")
@@ -576,7 +564,7 @@ def get_latest_snapshot_model(
             not hasattr(snapshot, "user_id") or snapshot.user_id != user_id
         ):
             logger.error(
-                "Data integrity issue: Retrieved snapshot (helper fn) user_id (%s) mismatch or missing for requested user_id %d",
+                "Data integrity issue: Retrieved snapshot (helper fn) user_id (%s) mismatch or missing for requested user_id %s",
                 getattr(snapshot, "user_id", "MISSING"),
                 user_id,
             )
@@ -586,7 +574,7 @@ def get_latest_snapshot_model(
 
     except SQLAlchemyError as e:
         logger.error(
-            "Database error retrieving latest snapshot model for user ID %d: %s",
+            "Database error retrieving latest snapshot model for user ID %s: %s",
             user_id,
             e,
             exc_info=True,
@@ -594,7 +582,7 @@ def get_latest_snapshot_model(
         raise  # Propagate DB errors
     except Exception as e:
         logger.error(
-            "Unexpected error retrieving latest snapshot model for user ID %d: %s",
+            "Unexpected error retrieving latest snapshot model for user ID %s: %s",
             user_id,
             e,
             exc_info=True,
@@ -613,9 +601,7 @@ class HTATreeRepository:
         """Initializes the repository with a database session."""
         if not isinstance(db, Session):
             raise TypeError("db must be a SQLAlchemy Session")
-        # Import here to avoid circular imports
-        from forest_app.models import HTATreeModel
-
+        # Check if HTATreeModel was imported correctly
         if not hasattr(HTATreeModel, "manifest"):
             raise ImportError("HTATreeModel appears to be incompletely imported.")
         self.db = db
@@ -626,11 +612,9 @@ class HTATreeRepository:
     ) -> Optional[Any]:
         """Retrieves a tree by ID for the specified user."""
         try:
-            from forest_app.models import HTATreeModel
-
             return (
-                self.db.query(HTATreeModel)
-                .filter(HTATreeModel.id == tree_id, HTATreeModel.user_id == user_id)
+                self.db.query(self.model)
+                .filter(self.model.id == tree_id, self.model.user_id == user_id)
                 .first()
             )
         except SQLAlchemyError as e:
@@ -645,24 +629,22 @@ class HTATreeRepository:
         Compatible with both PostgreSQL (prod) and SQLite (test).
         """
         try:
-            from forest_app.models import HTATreeModel
-
             dialect = str(self.db.bind.dialect.name)
             if dialect == "postgresql":
                 # Use efficient JSONB key existence for Postgres
                 trees = (
-                    self.db.query(HTATreeModel)
+                    self.db.query(self.model)
                     .filter(
-                        HTATreeModel.user_id == user_id,
-                        HTATreeModel.manifest.has_key(metadata_key),
+                        self.model.user_id == user_id,
+                        self.model.manifest.has_key(metadata_key),
                     )
                     .all()
                 )
             else:
                 # For SQLite (test), fetch all and filter in Python
                 trees = (
-                    self.db.query(HTATreeModel)
-                    .filter(HTATreeModel.user_id == user_id)
+                    self.db.query(self.model)
+                    .filter(self.model.user_id == user_id)
                     .all()
                 )
             # Filter in Python for exact metadata value matching
@@ -682,10 +664,8 @@ class HTATreeRepository:
         ** Commits the transaction. **
         """
         try:
-            from forest_app.models import HTATreeModel
-
             tree = (
-                self.db.query(HTATreeModel).filter(HTATreeModel.id == tree_id).first()
+                self.db.query(self.model).filter(self.model.id == tree_id).first()
             )
             if not tree:
                 return False

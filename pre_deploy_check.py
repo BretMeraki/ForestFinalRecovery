@@ -8,7 +8,10 @@ import os
 import sys
 from typing import Dict, List
 
-import pkg_resources
+try:
+    import pkg_resources
+except ImportError:
+    pkg_resources = None
 
 import test_imports
 

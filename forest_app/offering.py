@@ -4,13 +4,34 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ValidationError
-
-from forest_app.integrations.llm import LLMResponseModel, generate_response
-from forest_app.modules.desire_engine import DesireEngine
-from forest_app.modules.financial_readiness import FinancialReadinessEngine
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 logger = logging.getLogger(__name__)
 
+LLMResponseModel = import_with_fallback(
+    lambda: __import__('forest_app.integrations.llm', fromlist=['LLMResponseModel']).LLMResponseModel,
+    lambda: type('LLMResponseModel', (), {}),
+    logger,
+    "LLMResponseModel"
+)
+generate_response = import_with_fallback(
+    lambda: __import__('forest_app.integrations.llm', fromlist=['generate_response']).generate_response,
+    lambda: (lambda *a, **k: None),
+    logger,
+    "generate_response"
+)
+DesireEngine = import_with_fallback(
+    lambda: __import__('forest_app.modules.desire_engine', fromlist=['DesireEngine']).DesireEngine,
+    lambda: type('DesireEngine', (), {}),
+    logger,
+    "DesireEngine"
+)
+FinancialReadinessEngine = import_with_fallback(
+    lambda: __import__('forest_app.modules.financial_readiness', fromlist=['FinancialReadinessEngine']).FinancialReadinessEngine,
+    lambda: type('FinancialReadinessEngine', (), {}),
+    logger,
+    "FinancialReadinessEngine"
+)
 
 class _OfferingModel(BaseModel):
     suggestions: List[Dict[str, str]]

@@ -16,18 +16,25 @@ from sqlalchemy.orm import Session
 
 from forest_app.containers import Container
 from forest_app.core.discovery_journey.integration_utils import (
-    infuse_recommendations_into_snapshot, track_task_completion_for_discovery)
-from forest_app.core.integrations.discovery_integration import \
-    get_discovery_journey_service
+    infuse_recommendations_into_snapshot,
+    track_task_completion_for_discovery,
+)
+from forest_app.core.integrations.discovery_integration import (
+    get_discovery_journey_service,
+)
 from forest_app.core.orchestrator import ForestOrchestrator
-from forest_app.core.auth.security_utils import get_current_active_user
-from forest_app.core.memory.memory_snapshot import MemorySnapshot
-from forest_app.routers.onboarding_helpers import save_snapshot_with_codename
+from forest_app.core.security import get_current_active_user
+from forest_app.core.snapshot import MemorySnapshot
 from forest_app.modules.logging_tracking import TaskFootprintLogger
 from forest_app.modules.trigger_phrase import TriggerPhraseHandler
-from forest_app.database.session import get_db
-from forest_app.models import UserModel
-from forest_app.persistence.repository import MemorySnapshotRepository
+from forest_app.persistence.database import get_db
+from forest_app.persistence.models import UserModel
+from forest_app.persistence.repository import (
+    MemorySnapshotRepository,
+    get_latest_snapshot_model,
+)
+from forest_app.routers.onboarding_helpers import save_snapshot_with_codename
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 try:
     from forest_app.config import constants
@@ -42,11 +49,22 @@ except ImportError:
         SEED_STATUS_ACTIVE = "active"
         SEED_STATUS_COMPLETED = "completed"
         DEFAULT_RESONANCE_THEME = "neutral"
+        EVENT_TYPE_CONTEXT_ADDED = "context_added"
+        LLM_ENDPOINT_HTA_GENERATION = "hta_generation"
+        PROMPT_VERSION_HTA_GENERATION = "v1"
+        EVENT_TYPE_MANIFEST_GENERATED = "manifest_generated"
 
     constants = ConstantsPlaceholder()
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+constants = import_with_fallback(
+    lambda: __import__('forest_app.config', fromlist=['constants']).constants,
+    lambda: {},
+    logger,
+    "constants"
+)
 
 
 class CommandRequest(BaseModel):
@@ -92,6 +110,18 @@ class MessageResponse(BaseModel):
         # pylint: disable=too-few-public-methods
 
 
+# --- Helper functions for MemorySnapshotModel attribute access ---
+def get_snapshot_data(model):
+    if hasattr(model, 'snapshot_data'):
+        return model.snapshot_data
+    return None
+
+def get_snapshot_id(model):
+    if hasattr(model, 'id'):
+        return model.id
+    return None
+
+
 @router.post("/command", response_model=RichCommandResponse, tags=["Core"])
 @inject
 async def command_endpoint(
@@ -112,9 +142,9 @@ async def command_endpoint(
         repo = MemorySnapshotRepository(db)
         stored_model = get_latest_snapshot_model(user_id, db)
         snapshot = None
-        if stored_model and stored_model.snapshot_data:
+        if stored_model and get_snapshot_data(stored_model):
             try:
-                snapshot = MemorySnapshot.from_dict(stored_model.snapshot_data)
+                snapshot = MemorySnapshot.from_dict(get_snapshot_data(stored_model))
             except Exception as load_err:
                 logger.error(
                     "Err load snapshot user %d: %s", user_id, load_err, exc_info=True
@@ -155,7 +185,7 @@ async def command_endpoint(
                     raise HTTPException(
                         status_code=500, detail="Failed finalize save."
                     ) from commit_err
-                codename = saved_model.codename or f"ID {saved_model.id}"
+                codename = saved_model.codename or f"ID {get_snapshot_id(saved_model)}"
                 return RichCommandResponse(
                     tasks=[],
                     arbiter_response=f"Snapshot saved ('{codename}')",
@@ -176,9 +206,9 @@ async def command_endpoint(
         if not snapshot or not stored_model:
             onboarding_status = constants.ONBOARDING_STATUS_NEEDS_GOAL
             temp_stored_model = get_latest_snapshot_model(user_id, db)
-            if temp_stored_model and temp_stored_model.snapshot_data:
+            if temp_stored_model and get_snapshot_data(temp_stored_model):
                 try:
-                    temp_snap_data = temp_stored_model.snapshot_data
+                    temp_snap_data = get_snapshot_data(temp_stored_model)
                     if isinstance(temp_snap_data, dict) and temp_snap_data.get(
                         "activated_state", {}
                     ).get("goal_set"):
@@ -299,9 +329,9 @@ async def complete_task_endpoint(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No active session found."
             )
-        if not stored_model.snapshot_data:
+        if not get_snapshot_data(stored_model):
             logger.error(
-                "Snapshot data empty for user %d (ID: %s).", user_id, stored_model.id
+                "Snapshot data empty for user %d (ID: %s).", user_id, get_snapshot_id(stored_model)
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -309,7 +339,7 @@ async def complete_task_endpoint(
             )
 
         try:
-            snap = MemorySnapshot.from_dict(stored_model.snapshot_data)
+            snap = MemorySnapshot.from_dict(get_snapshot_data(stored_model))
         except Exception as load_err:
             logger.error(
                 "Err load snapshot user %d: %s", user_id, load_err, exc_info=True

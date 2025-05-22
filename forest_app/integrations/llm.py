@@ -13,24 +13,33 @@ from __future__ import annotations
 import json
 import logging
 import re
+
 # MODIFIED: Added List for type hinting
 from typing import Any, List, Optional, Type, TypeVar, Union
 
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field
 from pydantic import ValidationError as PydanticValidationError
-from tenacity import (AsyncRetrying, RetryError, retry_if_exception_type,
-                      stop_after_attempt, wait_fixed)
+from tenacity import (
+    AsyncRetrying,
+    RetryError,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 # ───────────────────────────── Third-party ───────────────────────────
 try:
     import google.generativeai as genai
     from google.api_core import exceptions as google_api_exceptions
     from google.generativeai import protos
-    from google.generativeai.types import (ContentDict,
-                                           GenerateContentResponse,
-                                           GenerationConfig,
-                                           HarmBlockThreshold, HarmCategory)
+    from google.generativeai.types import (
+        ContentDict,
+        GenerateContentResponse,
+        GenerationConfig,
+        HarmBlockThreshold,
+        HarmCategory,
+    )
 
     google_import_ok = True
 except ImportError:
@@ -166,28 +175,22 @@ except AttributeError as e:
     _llm_temperature = 0.7
 # --- END IMPORT ---
 
-# --- HTA Model Imports ---
-try:
-    # Import the base HTA models needed for response structures
+# --- HTA Model Imports with TYPE_CHECKING to avoid circular imports ---
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Import the base HTA models only for type checking to avoid circular imports
     from forest_app.modules.hta_models import HTANodeModel, HTAResponseModel
-
     hta_models_import_ok = True
-except ImportError:
-    logging.getLogger(__name__).warning(
-        "Failed to import HTA models from forest_app.modules.hta_models. HTA-specific logic might be limited."
-    )
-    hta_models_import_ok = False
-
-    # Define dummy classes to avoid NameErrors if import fails
+else:
+    # Define dummy classes at runtime to avoid NameErrors
     class BaseModelPlaceholder(PydanticBaseModel):
         pass  # Inherit from Pydantic BaseModel for compatibility
 
     class HTANodeModel(BaseModelPlaceholder):
         # Add dummy fields if needed for type checking, adjust as per actual model
         id: str = "dummy_id"
-        label: str = (
-            "dummy_label"  # Assuming 'label' based on prompt, adjust if 'title'
-        )
+        title: str = "dummy_title"  # Changed from label to title
         children: list = []
         pass
 
@@ -196,6 +199,8 @@ except ImportError:
         # Use Optional if it might be missing
         hta_root: Optional[HTANodeModel] = None
         pass
+    
+    hta_models_import_ok = False
 
 
 # ─────────────────────────────────
@@ -346,7 +351,7 @@ Your task is to evolve the provided HTA based on a specific goal or a summary of
 {{
   "hta_root": {{
     "id": "...",
-    "label": "...", // or "title" depending on your model
+    "title": "...", // or "label" depending on your model
     "priority": 0.5, // Added/Corrected
     "magnitude": 5.0, // Added/Corrected
     "children": [ ... ] // Recursively nested structure with enriched nodes

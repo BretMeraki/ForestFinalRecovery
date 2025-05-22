@@ -1,31 +1,15 @@
 # forest_app/modules/trail_manager.py
 
-import hashlib  # Moved import here
 import logging
-from datetime import datetime, timezone  # Added timezone
-from typing import Any, Dict, List, Optional
-
-# --- Import Feature Flags ---
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger = logging.getLogger("trail_manager_init")
-    logger.warning(
-        "Feature flags module not found in trail_manager. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        TRAIL_MANAGER = "FEATURE_ENABLE_TRAIL_MANAGER"  # Define the specific flag
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True
-
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+import hashlib  # Moved import here
+from datetime import datetime, timezone  # Added timezone
+from typing import Any, Dict, List, Optional
+from forest_app.utils.import_fallbacks import import_with_fallback, get_feature_flag_tools
+
+Feature, is_enabled = get_feature_flag_tools(logger)
 
 
 class TrailEvent:

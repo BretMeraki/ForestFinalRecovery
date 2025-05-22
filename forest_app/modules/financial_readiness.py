@@ -15,8 +15,14 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, ValidationError
 
 # Local application imports
-from forest_app.utils import (LLMClient, LLMError, clamp01, handle_http_errors,
-                              is_enabled, validate_and_parse_timestamp)
+from forest_app.utils import (
+    LLMClient,
+    LLMError,
+    clamp01,
+    handle_http_errors,
+    is_enabled,
+    validate_and_parse_timestamp,
+)
 
 # Constants
 DEFAULT_READINESS = 0.5

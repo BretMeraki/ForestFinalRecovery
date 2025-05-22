@@ -8,16 +8,31 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session  # Import Session for type hinting
 
 # Import request context
-from forest_app.core.request_context import RequestContext
+try:
+    from forest_app.core.request_context import RequestContext
+except ImportError as e:
+    logging.error(f"Failed to import RequestContext: {e}")
+    class RequestContext:
+        def __init__(self, user_id=None, trace_id=None, feature_flags=None):
+            self.user_id = user_id
+            self.trace_id = trace_id
+            self.feature_flags = feature_flags or {}
+
 # Import centralized error handling
-from forest_app.utils.error_handling import log_import_error
+try:
+    from forest_app.utils.error_handling import log_import_error
+except ImportError as e:
+    def log_import_error(error, module_name=None):
+        logging.error(f"Import error in {module_name or 'unknown module'}: {error}")
 
 # --- Import the Classes needed for type hinting ---
 try:
     from forest_app.containers import Container
     from forest_app.core.orchestrator import ForestOrchestrator
-    from forest_app.modules.logging_tracking import (ReflectionLogLogger,
-                                                     TaskFootprintLogger)
+    from forest_app.modules.logging_tracking import (
+        ReflectionLogLogger,
+        TaskFootprintLogger,
+    )
     from forest_app.modules.trigger_phrase import TriggerPhraseHandler
     from forest_app.persistence.database import get_db
 

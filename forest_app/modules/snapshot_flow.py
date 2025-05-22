@@ -4,8 +4,10 @@ import sys  # For stderr
 from collections import deque
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from uuid import UUID
 
 from forest_app.core.snapshot import MemorySnapshot
+
 # Import shared types
 from forest_app.modules.types import SemanticMemoryProtocol
 
@@ -245,7 +247,7 @@ class SnapshotFlowController:
         try:
             # Extract themes from memory content
             for memory in memories:
-                content = memory.get("content", "")
+                memory.get("content", "")
                 # Add basic theme extraction logic here
                 # For now, just use memory types as themes
                 if memory.get("event_type"):

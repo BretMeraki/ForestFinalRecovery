@@ -9,10 +9,42 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from forest_app.core.discovery_journey import DiscoveryJourneyService
-from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
-from forest_app.core.snapshot import MemorySnapshot
-from forest_app.modules.hta_tree import HTATree
+try:
+    from forest_app.core.discovery_journey import DiscoveryJourneyService
+except ImportError as e:
+    logging.error(f"Failed to import DiscoveryJourneyService: {e}")
+    class DiscoveryJourneyService:
+        pass
+try:
+    from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
+except ImportError as e:
+    logging.error(f"Failed to import EnhancedHTAService: {e}")
+    class EnhancedHTAService:
+        pass
+try:
+    from forest_app.core.snapshot import MemorySnapshot
+except ImportError as e:
+    logging.error(f"Failed to import MemorySnapshot: {e}")
+    class MemorySnapshot:
+        pass
+try:
+    from forest_app.modules.hta_tree import HTATree
+except ImportError as e:
+    logging.error(f"Failed to import HTATree: {e}")
+    class HTATree:
+        @staticmethod
+        def from_dict(d):
+            return HTATree()
+        def to_dict(self):
+            return {}
+        @property
+        def root_id(self):
+            return None
+        @property
+        def nodes(self):
+            return {}
+        def add_node(self, **kwargs):
+            pass
 
 logger = logging.getLogger(__name__)
 

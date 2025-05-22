@@ -2,27 +2,22 @@
 
 import logging
 from typing import Any  # Added Any for feature flag fallback
+from forest_app.utils.import_fallbacks import import_with_fallback
 
 # --- Import Feature Flags ---
 # Assuming feature_flags.py is accessible from this module's path
-try:
-    from forest_app.core.feature_flags import Feature, is_enabled
-except ImportError:
-    logger.warning(
-        "Feature flags module not found in resistance_engine. Feature flag checks will be disabled."
-    )
-
-    class Feature:  # Dummy class
-        RESISTANCE_ENGINE = (
-            "FEATURE_ENABLE_RESISTANCE_ENGINE"  # Define the specific flag used here
-        )
-
-    def is_enabled(feature: Any) -> bool:  # Dummy function - default to True or False
-        logger.warning(
-            "is_enabled check defaulting to TRUE due to missing feature flags module."
-        )
-        return True  # Or False, choose appropriate fallback
-
+Feature = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['Feature']).Feature,
+    lambda: type('Feature', (), {}),
+    logger,
+    "Feature"
+)
+is_enabled = import_with_fallback(
+    lambda: __import__('forest_app.core.feature_flags', fromlist=['is_enabled']).is_enabled,
+    lambda: (lambda *a, **k: False),
+    logger,
+    "is_enabled"
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

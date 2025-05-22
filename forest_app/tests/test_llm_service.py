@@ -12,12 +12,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from forest_app.integrations.context_trimmer import ContextTrimmer
-from forest_app.integrations.llm_service import (GoogleGeminiService,
-                                                 LLMRequestError,
-                                                 LLMTimeoutError,
-                                                 create_llm_service)
-from forest_app.integrations.prompt_augmentation import \
-    PromptAugmentationService
+from forest_app.integrations.llm_service import (
+    GoogleGeminiService,
+    LLMRequestError,
+    LLMTimeoutError,
+    create_llm_service,
+)
+from forest_app.integrations.prompt_augmentation import PromptAugmentationService
 
 # Setup logging for tests
 logging.basicConfig(level=logging.INFO)
@@ -59,7 +60,7 @@ class TestLLMService:
         assert result == "This is a test response"
         mock_model_instance.generate_content_async.assert_called_once()
         assert len(service.request_logs) == 1
-        assert service.request_logs[0].success == True
+        assert service.request_logs[0].success
 
     @pytest.mark.asyncio
     @patch("google.generativeai.GenerativeModel")
@@ -93,7 +94,7 @@ class TestLLMService:
         assert mock_model_instance.generate_content_async.call_count == 2
         assert len(service.request_logs) == 1
         assert service.request_logs[0].retry_count == 1
-        assert service.request_logs[0].success == True
+        assert service.request_logs[0].success
 
     @pytest.mark.asyncio
     @patch("google.generativeai.GenerativeModel")
