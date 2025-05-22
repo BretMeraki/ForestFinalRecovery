@@ -5,7 +5,7 @@ import os
 import secrets
 from typing import Any, Dict, Optional
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
 
@@ -95,11 +95,12 @@ class AppSettings(BaseSettings):
         False  # Skipped Code Check (Resonance Handled)
     )
 
-    # Pydantic v1 Settings Configuration
-    class Config:
-        env_file = ".env"  # Load from .env file if it exists
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # Ignore extra environment variables
+    # Pydantic v2 Settings Configuration
+    model_config = {
+        "env_file": ".env",  # Load from .env file if it exists
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",  # Ignore extra environment variables
+    }
 
 
 # --- Create a single instance of the settings ---
@@ -108,7 +109,7 @@ settings = AppSettings()
 # --- Logging & Checks (Keep your existing checks) ---
 # [Logging/Checks remain unchanged]
 logger.debug(">>> DEBUG SETTINGS: STARTING Pydantic settings.py <<<")
-for key, value in settings.dict().items():
+for key, value in settings.model_dump().items():
     if "KEY" in key or "STRING" in key:
         logger.debug(
             ">>> DEBUG SETTINGS: %s: %sLoaded' if value else 'Missing/Empty'"

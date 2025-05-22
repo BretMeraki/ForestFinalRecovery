@@ -76,7 +76,7 @@ except ImportError as e:
         def publish(self, *args, **kwargs):
             pass
     class EventType:
-        SYSTEM_METRICS = "SYSTEM_METRICS"
+        METRICS_RECORDED = "system.metrics"
 
 try:
     from forest_app.core.services.enhanced_hta_service import EnhancedHTAService
@@ -248,7 +248,7 @@ def inject_enhanced_architecture(app: FastAPI) -> None:
         event_bus = container.event_bus()
         await event_bus.publish(
             {
-                "event_type": EventType.SYSTEM_METRICS,
+                "event_type": EventType.METRICS_RECORDED,
                 "payload": {
                     "event": "startup",
                     "message": "The Forest's enhanced architecture is now active",

@@ -2,18 +2,19 @@
 # Cleaned after failed merge. All merge conflict markers removed. Only one version of each dependency is kept.
 
 # Core FastAPI framework and server
-fastapi==0.95.2  # Last version compatible with Pydantic v1
-starlette==0.27.0
-python-multipart==0.0.20
+fastapi>=0.95.2  # Compatible with Pydantic v2
+starlette>=0.27.0,<1.0.0
+python-multipart>=0.0.20
 
-# Pydantic v1 for legacy compatibility
-pydantic==1.10.13  # Last stable version of v1
+# Pydantic v2 with settings package
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
 
 # Database ORM
-SQLAlchemy==1.4.50  # Last version before 2.0
+SQLAlchemy>=1.4.50,<2.0.0  # Last version before 2.0
 
 # HTTP client for LLM integration
-httpx==0.27.0
+httpx>=0.27.0
 
 # Retry/backoff libraries for LLM integration
 backoff==2.2.1
@@ -29,7 +30,7 @@ nltk==3.8.1
 numpy>=1.24.0
 
 # uvicorn - Explicitly listed with standard extras
-uvicorn[standard]==0.30.0
+uvicorn[standard]>=0.30.0
 
 # PostGres DB Driver
 # Using SQLite instead of PostgreSQL for development
