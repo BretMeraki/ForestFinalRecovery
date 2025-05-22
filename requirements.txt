@@ -8,6 +8,7 @@ python-multipart==0.0.20
 
 # Pydantic v1 for legacy compatibility
 pydantic==1.10.13  # Last stable version of v1
+pydantic-settings==2.1.0  # Required for settings management
 
 # Database ORM
 SQLAlchemy==1.4.50  # Last version before 2.0
@@ -25,12 +26,16 @@ python-json-logger==2.0.7
 # Natural Language Toolkit
 nltk==3.8.1
 
+# Scientific computing
+numpy>=1.24.0
+
 # uvicorn - Explicitly listed with standard extras
 uvicorn[standard]==0.30.0
 
 # PostGres DB Driver
 # Using SQLite instead of PostgreSQL for development
 aiosqlite==0.19.0
+psycopg2-binary>=2.9.5  # Required for PostgreSQL in production
 
 # LLM and tokenization libraries
 google-generativeai==0.6.0
