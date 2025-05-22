@@ -55,6 +55,13 @@ def upgrade() -> None:
                 # Since this is a development environment, we can safely drop existing data
                 print("Dropping and recreating users table with UUID primary key...")
                 
+                # Drop dependent tables first (they will be recreated by other migrations if needed)
+                try:
+                    print("Dropping memory_snapshots table (depends on users)...")
+                    op.drop_table("memory_snapshots")
+                except Exception as e:
+                    print(f"memory_snapshots table not found or already dropped: {e}")
+                
                 # Drop foreign key constraints first
                 try:
                     op.drop_constraint("reflection_logs_user_id_fkey", "reflection_logs", type_="foreignkey")
@@ -67,6 +74,7 @@ def upgrade() -> None:
                     print("task_footprints_user_id_fkey constraint not found, skipping...")
                 
                 # Drop the users table
+                print("Dropping users table...")
                 op.drop_table("users")
                 
                 # Recreate users table with UUID primary key
