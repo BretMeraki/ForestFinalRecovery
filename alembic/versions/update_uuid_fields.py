@@ -126,6 +126,13 @@ def upgrade() -> None:
                 except Exception:
                     print("Could not recreate task_footprints foreign key, table may not exist...")
                 print("Successfully altered users.id to UUID and set server_default.")
+                
+                # Commit the transaction to ensure changes are persisted
+                connection.commit()
+                
+                # Create a new inspector after the transaction commit
+                inspector = sa.inspect(connection)
+                
             except Exception as e:
                 print(f"Failed to alter users.id type or set server_default: {e}")
                 print(
@@ -134,6 +141,8 @@ def upgrade() -> None:
                 print(
                     "Manual intervention or a more detailed data migration strategy for users.id might be needed."
                 )
+                # Rollback the transaction on error
+                connection.rollback()
                 raise  # Re-raise the exception to halt the migration
         else:
             print("users.id appears to be already of UUID type.")
@@ -144,7 +153,14 @@ def upgrade() -> None:
     # --- END RECOMMENDED CHANGE ---
 
     # Rest of your existing upgrade function...
-    tables = inspector.get_table_names()  # Re-inspect if needed, or use previous
+    # Re-inspect tables after potential schema changes
+    try:
+        tables = inspector.get_table_names()
+    except Exception as e:
+        print(f"Error inspecting tables, creating new inspector: {e}")
+        # Create fresh inspector if the previous one is in a bad state
+        inspector = sa.inspect(connection)
+        tables = inspector.get_table_names()
 
     if "hta_trees" not in tables:
         op.create_table(
