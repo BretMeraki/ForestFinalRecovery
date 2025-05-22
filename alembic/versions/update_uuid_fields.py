@@ -127,10 +127,8 @@ def upgrade() -> None:
                     print("Could not recreate task_footprints foreign key, table may not exist...")
                 print("Successfully altered users.id to UUID and set server_default.")
                 
-                # Commit the transaction to ensure changes are persisted
-                connection.commit()
-                
-                # Create a new inspector after the transaction commit
+                # Alembic manages transactions automatically, no need for manual commit
+                # Create a new inspector to reflect the schema changes
                 inspector = sa.inspect(connection)
                 
             except Exception as e:
@@ -141,8 +139,7 @@ def upgrade() -> None:
                 print(
                     "Manual intervention or a more detailed data migration strategy for users.id might be needed."
                 )
-                # Rollback the transaction on error
-                connection.rollback()
+                # Alembic will handle transaction rollback automatically on exceptions
                 raise  # Re-raise the exception to halt the migration
         else:
             print("users.id appears to be already of UUID type.")
