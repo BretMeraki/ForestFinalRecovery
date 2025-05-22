@@ -29,28 +29,6 @@ def upgrade() -> None:
         if "UUID" not in current_type_str:
             print(f"Attempting to alter users.id from {current_type_str} to UUID...")
             try:
-                # IMPORTANT: Define existing_type accurately based on your DB.
-                # Common integer types are sa.Integer(), sa.BIGINT().
-                # If users.id was defined as SERIAL, existing_type might be sa.Integer().
-                # The 'postgresql_using' clause is often necessary for PostgreSQL to convert data.
-                # 'id::text::uuid' is one way but can be problematic.
-                # 'gen_random_uuid()' would REPLACE existing integer IDs with new UUIDs - DESTRUCTIVE.
-                # This step requires careful consideration based on whether data exists and needs preservation.
-                # If the table is empty or IDs can be regenerated, it's simpler.
-
-                # Option 1: If you need to convert existing integer IDs to some UUID representation (e.g., for new setups or if values allow)
-                # op.alter_column('users', 'id',
-                #                existing_type=sa.Integer(), # Verify this against your actual DB schema for users.id
-                #                type_=postgresql.UUID(as_uuid=True),
-                #                existing_nullable=False,
-                #                postgresql_using='id::text::uuid') # Example casting, review for your data
-
-                # Option 2: If users.id should have a new UUID default and old int data is not an issue or handled separately
-                # This is more aligned with `default=uuid.uuid4` in your model.
-                # This will likely FAIL if there's existing data that cannot be cast,
-                # or if it's a PK with existing integer values.
-                # A more robust approach for existing data involves multiple steps (new column, data copy, drop old, rename).
-                # For now, focusing on the type change:
                 # Safe migration approach: Drop and recreate the users table with UUID
                 # Since this is a development environment, we can safely drop existing data
                 print("Dropping and recreating users table with UUID primary key...")
@@ -127,10 +105,6 @@ def upgrade() -> None:
                     print("Could not recreate task_footprints foreign key, table may not exist...")
                 print("Successfully altered users.id to UUID and set server_default.")
                 
-                # Alembic manages transactions automatically, no need for manual commit
-                # Create a new inspector to reflect the schema changes
-                inspector = sa.inspect(connection)
-                
             except Exception as e:
                 print(f"Failed to alter users.id type or set server_default: {e}")
                 print(
@@ -145,24 +119,20 @@ def upgrade() -> None:
             print("users.id appears to be already of UUID type.")
     else:
         print("Could not find 'id' column in 'users' table for type alteration check.")
-        # This would be an unexpected state if the table should exist.
 
     # --- END RECOMMENDED CHANGE ---
 
-    # Rest of your existing upgrade function...
-    # Re-inspect tables after potential schema changes
+    # Create HTA tables (simplified check without problematic inspector recreation)
+    # Check if hta_trees exists by trying to get its columns
     try:
-        tables = inspector.get_table_names()
-    except Exception as e:
-        print(f"Error inspecting tables, creating new inspector: {e}")
-        # Create fresh inspector if the previous one is in a bad state
-        inspector = sa.inspect(connection)
-        tables = inspector.get_table_names()
+        hta_trees_columns = inspector.get_columns("hta_trees")
+        hta_trees_exists = True
+    except Exception:
+        hta_trees_exists = False
 
-    if "hta_trees" not in tables:
+    if not hta_trees_exists:
         op.create_table(
             "hta_trees",
-            # ... (your existing hta_trees definition)
             sa.Column(
                 "id",
                 postgresql.UUID(as_uuid=True),
@@ -197,8 +167,14 @@ def upgrade() -> None:
             sa.Index("idx_hta_trees_user_id_created_at", "user_id", "created_at"),
         )
 
-        if "hta_nodes" not in tables:
-            # ... (your existing hta_nodes definition) ...
+        # Check if hta_nodes exists
+        try:
+            hta_nodes_columns = inspector.get_columns("hta_nodes")
+            hta_nodes_exists = True
+        except Exception:
+            hta_nodes_exists = False
+
+        if not hta_nodes_exists:
             op.create_table(
                 "hta_nodes",
                 sa.Column(
@@ -261,48 +237,47 @@ def upgrade() -> None:
                 ["id"],
             )
 
-    indexes = inspector.get_indexes("hta_trees")
-    if not any(idx["name"] == "idx_hta_trees_manifest_gin" for idx in indexes):
-        op.create_index(
-            "idx_hta_trees_manifest_gin",
-            "hta_trees",
-            ["manifest"],
-            postgresql_using="gin",
-        )
+    # Create GIN index on manifest column if it doesn't exist
+    try:
+        indexes = inspector.get_indexes("hta_trees")
+        if not any(idx["name"] == "idx_hta_trees_manifest_gin" for idx in indexes):
+            op.create_index(
+                "idx_hta_trees_manifest_gin",
+                "hta_trees",
+                ["manifest"],
+                postgresql_using="gin",
+            )
+    except Exception as e:
+        print(f"Could not create GIN index: {e}")
 
 
 def downgrade() -> None:
-    # ... (your existing downgrade, ensure it's compatible if you altered users.id) ...
-    # If you altered users.id, the downgrade should ideally revert it.
-    # op.alter_column('users', 'id',
-    #                existing_type=postgresql.UUID(as_uuid=True),
-    #                type_=sa.Integer(), # Or original type
-    #                existing_nullable=False,
-    #                server_default=None) # Remove UUID server default
-    # op.alter_column('users', 'id', server_default=None) # Also remove the server default
-
     connection = op.get_bind()
     inspector = sa.inspect(connection)
-    tables = inspector.get_table_names()
+    
+    # Check if hta_trees exists
+    try:
+        hta_trees_columns = inspector.get_columns("hta_trees")
+        hta_trees_exists = True
+    except Exception:
+        hta_trees_exists = False
 
-    if "hta_trees" in tables:
-        indexes = inspector.get_indexes("hta_trees")
-        if any(idx["name"] == "idx_hta_trees_manifest_gin" for idx in indexes):
-            op.drop_index("idx_hta_trees_manifest_gin", table_name="hta_trees")
+    if hta_trees_exists:
+        try:
+            indexes = inspector.get_indexes("hta_trees")
+            if any(idx["name"] == "idx_hta_trees_manifest_gin" for idx in indexes):
+                op.drop_index("idx_hta_trees_manifest_gin", table_name="hta_trees")
+        except Exception:
+            pass
 
-        if "hta_nodes" in tables:
-            op.drop_table(
-                "hta_nodes"
-            )  # Drops hta_nodes first due to FK from hta_trees.top_node_id
+        # Check if hta_nodes exists
+        try:
+            hta_nodes_columns = inspector.get_columns("hta_nodes")
+            hta_nodes_exists = True
+        except Exception:
+            hta_nodes_exists = False
 
-        op.drop_table("hta_trees")
+        if hta_nodes_exists:
+            op.drop_table("hta_nodes")
 
-        # Consider if users.id type change needs to be reverted in downgrade
-        # print("Reverting users.id to original type (e.g., Integer)...")
-        # op.alter_column('users', 'id',
-        #                existing_type=postgresql.UUID(as_uuid=True),
-        #                type_=sa.Integer(), # Ensure this is the correct original type
-        #                existing_nullable=False,
-        #                server_default=None) # Remove server_default if you added one for UUID
-        # print("users.id type reverted.")
         op.drop_table("hta_trees")
