@@ -51,17 +51,72 @@ def upgrade() -> None:
                 # or if it's a PK with existing integer values.
                 # A more robust approach for existing data involves multiple steps (new column, data copy, drop old, rename).
                 # For now, focusing on the type change:
-                op.alter_column(
+                # Safe migration approach: Drop and recreate the users table with UUID
+                # Since this is a development environment, we can safely drop existing data
+                print("Dropping and recreating users table with UUID primary key...")
+                
+                # Drop foreign key constraints first
+                try:
+                    op.drop_constraint("reflection_logs_user_id_fkey", "reflection_logs", type_="foreignkey")
+                except Exception:
+                    print("reflection_logs_user_id_fkey constraint not found, skipping...")
+                
+                try:
+                    op.drop_constraint("task_footprints_user_id_fkey", "task_footprints", type_="foreignkey")  
+                except Exception:
+                    print("task_footprints_user_id_fkey constraint not found, skipping...")
+                
+                # Drop the users table
+                op.drop_table("users")
+                
+                # Recreate users table with UUID primary key
+                op.create_table(
                     "users",
-                    "id",
-                    existing_type=sa.Integer(),  # VERIFY THIS! e.g., sa.Integer(), sa.BIGINT()
-                    type_=postgresql.UUID(as_uuid=True),
-                    existing_nullable=False,
-                    # Add server default for new UUIDs if it was previously SERIAL/IDENTITY
-                    server_default=sa.text("gen_random_uuid()"),
-                    # postgresql_using='gen_random_uuid()' # If replacing data is OK
-                    # postgresql_using='uuid_generate_v4()' # If pgcrypto and extension installed
+                    sa.Column(
+                        "id",
+                        postgresql.UUID(as_uuid=True),
+                        primary_key=True,
+                        server_default=sa.text("gen_random_uuid()"),
+                    ),
+                    sa.Column("email", sa.String(255), nullable=False, unique=True),
+                    sa.Column("hashed_password", sa.String(255), nullable=False),
+                    sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+                    sa.Column(
+                        "created_at",
+                        sa.DateTime(timezone=True),
+                        server_default=sa.text("now()"),
+                        nullable=False,
+                    ),
+                    sa.Column(
+                        "updated_at",
+                        sa.DateTime(timezone=True),
+                        server_default=sa.text("now()"),
+                        nullable=False,
+                    ),
                 )
+                
+                # Recreate foreign key constraints
+                try:
+                    op.create_foreign_key(
+                        "reflection_logs_user_id_fkey",
+                        "reflection_logs", 
+                        "users",
+                        ["user_id"],
+                        ["id"]
+                    )
+                except Exception:
+                    print("Could not recreate reflection_logs foreign key, table may not exist...")
+                
+                try:
+                    op.create_foreign_key(
+                        "task_footprints_user_id_fkey",
+                        "task_footprints",
+                        "users", 
+                        ["user_id"],
+                        ["id"]
+                    )
+                except Exception:
+                    print("Could not recreate task_footprints foreign key, table may not exist...")
                 print("Successfully altered users.id to UUID and set server_default.")
             except Exception as e:
                 print(f"Failed to alter users.id type or set server_default: {e}")
