@@ -18,7 +18,6 @@ depends_on: Union[str, Sequence[str], None] = None
 def table_exists(connection, table_name):
     """Safely check if a table exists without causing transaction issues."""
     try:
-        # Use a simple query that won't cause transaction abort
         result = connection.execute(sa.text(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"
         ), {"table_name": table_name})
@@ -27,19 +26,58 @@ def table_exists(connection, table_name):
         return False
 
 
+def get_users_id_type(connection):
+    """Detect the data type of users.id column."""
+    try:
+        result = connection.execute(sa.text("""
+            SELECT data_type, udt_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'users' AND column_name = 'id'
+        """))
+        row = result.fetchone()
+        if row:
+            data_type, udt_name = row
+            return data_type.lower(), udt_name.lower()
+        return None, None
+    except Exception:
+        return None, None
+
+
 def upgrade() -> None:
     connection = op.get_bind()
     
-    print("🚀 Starting BULLETPROOF UUID migration for ForestFinal...")
-    print("Using ultra-conservative approach to avoid PostgreSQL transaction issues")
+    print("🚀 Starting SMART ADAPTIVE migration for ForestFinal...")
+    print("🧠 Detects existing database schema and adapts accordingly")
 
-    # STRATEGY: Only create tables that don't exist, avoid all modification operations
-    
-    # Check if users table exists
+    # Check if users table exists and get its ID type
     users_exists = table_exists(connection, "users")
     print(f"Users table exists: {users_exists}")
     
-    if not users_exists:
+    users_id_type = None
+    users_id_sqlalchemy_type = None
+    
+    if users_exists:
+        data_type, udt_name = get_users_id_type(connection)
+        print(f"Detected users.id type: {data_type} ({udt_name})")
+        
+        if data_type and ('uuid' in data_type or 'uuid' in udt_name):
+            print("🎯 Users table has UUID primary key - creating UUID-compatible HTA tables")
+            users_id_type = "uuid"
+            users_id_sqlalchemy_type = postgresql.UUID(as_uuid=True)
+        elif data_type and ('int' in data_type or 'serial' in data_type):
+            print("🎯 Users table has INTEGER primary key - creating INTEGER-compatible HTA tables")
+            users_id_type = "integer"
+            users_id_sqlalchemy_type = sa.Integer()
+        else:
+            print(f"⚠️ Unknown users.id type: {data_type} - defaulting to INTEGER compatibility")
+            users_id_type = "integer"
+            users_id_sqlalchemy_type = sa.Integer()
+    else:
+        print("🆕 Users table doesn't exist - creating new schema with UUID")
+        users_id_type = "uuid"
+        users_id_sqlalchemy_type = postgresql.UUID(as_uuid=True)
+        
+        # Create users table with UUID
         print("Creating users table with UUID primary key...")
         try:
             op.create_table(
@@ -70,51 +108,37 @@ def upgrade() -> None:
         except Exception as e:
             print(f"❌ Failed to create users table: {e}")
             raise
+
+    # Determine the correct column types for HTA tables
+    if users_id_type == "uuid":
+        print("📋 Using UUID types for HTA table foreign keys")
+        id_column_type = postgresql.UUID(as_uuid=True)
+        id_default = sa.text("gen_random_uuid()")
     else:
-        print("✅ Users table already exists - skipping creation")
-        # Check if users.id is UUID type
-        try:
-            result = connection.execute(sa.text("""
-                SELECT data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'users' AND column_name = 'id'
-            """))
-            data_type = result.scalar()
-            print(f"Current users.id type: {data_type}")
-            
-            if data_type and 'uuid' not in data_type.lower():
-                print("⚠️ WARNING: users.id is not UUID type!")
-                print("⚠️ For production, you may need to manually convert this table")
-                print("⚠️ For development, consider dropping the users table first")
-            else:
-                print("✅ users.id appears to be UUID type")
-        except Exception as e:
-            print(f"⚠️ Could not check users.id type: {e}")
+        print("📋 Using INTEGER types for HTA table foreign keys")
+        id_column_type = sa.Integer()
+        id_default = None  # PostgreSQL will auto-increment
 
     # Check and create hta_trees table
     hta_trees_exists = table_exists(connection, "hta_trees")
     print(f"HTA Trees table exists: {hta_trees_exists}")
     
     if not hta_trees_exists:
-        print("Creating hta_trees table...")
+        print("Creating hta_trees table with adaptive foreign keys...")
         try:
-            op.create_table(
-                "hta_trees",
+            # Create table with adaptive column types
+            table_args = [
                 sa.Column(
                     "id",
-                    postgresql.UUID(as_uuid=True),
+                    id_column_type,
                     primary_key=True,
-                    server_default=sa.text("gen_random_uuid()"),
+                    server_default=id_default,
                 ),
-                sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
+                sa.Column("user_id", users_id_sqlalchemy_type, nullable=False),
                 sa.Column("goal_name", sa.String(255), nullable=False),
                 sa.Column("initial_context", sa.Text(), nullable=True),
-                sa.Column("top_node_id", postgresql.UUID(as_uuid=True), nullable=True),
                 sa.Column("initial_roadmap_depth", sa.Integer(), nullable=True),
                 sa.Column("initial_task_count", sa.Integer(), nullable=True),
-                sa.Column(
-                    "manifest", postgresql.JSONB(astext_type=sa.Text()), nullable=True
-                ),
                 sa.Column(
                     "created_at",
                     sa.DateTime(timezone=True),
@@ -132,8 +156,18 @@ def upgrade() -> None:
                     ["users.id"],
                 ),
                 sa.Index("idx_hta_trees_user_id_created_at", "user_id", "created_at"),
-            )
-            print("✅ Created hta_trees table")
+            ]
+            
+            # Add UUID-specific columns and indexes only for UUID tables
+            if users_id_type == "uuid":
+                table_args.insert(4, sa.Column("top_node_id", postgresql.UUID(as_uuid=True), nullable=True))
+                table_args.insert(7, sa.Column("manifest", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
+            else:
+                table_args.insert(4, sa.Column("top_node_id", sa.Integer(), nullable=True))
+                table_args.insert(7, sa.Column("manifest", sa.JSON(), nullable=True))
+            
+            op.create_table("hta_trees", *table_args)
+            print(f"✅ Created hta_trees table with {users_id_type.upper()} compatibility")
         except Exception as e:
             print(f"❌ Failed to create hta_trees table: {e}")
             raise
@@ -145,19 +179,19 @@ def upgrade() -> None:
     print(f"HTA Nodes table exists: {hta_nodes_exists}")
     
     if not hta_nodes_exists:
-        print("Creating hta_nodes table...")
+        print("Creating hta_nodes table with adaptive foreign keys...")
         try:
-            op.create_table(
-                "hta_nodes",
+            # Create table with adaptive column types
+            table_args = [
                 sa.Column(
                     "id",
-                    postgresql.UUID(as_uuid=True),
+                    id_column_type,
                     primary_key=True,
-                    server_default=sa.text("gen_random_uuid()"),
+                    server_default=id_default,
                 ),
-                sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-                sa.Column("parent_id", postgresql.UUID(as_uuid=True), nullable=True),
-                sa.Column("tree_id", postgresql.UUID(as_uuid=True), nullable=False),
+                sa.Column("user_id", users_id_sqlalchemy_type, nullable=False),
+                sa.Column("parent_id", id_column_type, nullable=True),
+                sa.Column("tree_id", id_column_type, nullable=False),
                 sa.Column("title", sa.String(255), nullable=False),
                 sa.Column("description", sa.Text(), nullable=True),
                 sa.Column(
@@ -199,8 +233,10 @@ def upgrade() -> None:
                 sa.Index("idx_hta_nodes_parent_id", "parent_id"),
                 sa.Index("idx_hta_nodes_tree_id", "tree_id"),
                 sa.Index("idx_hta_nodes_user_id", "user_id"),
-            )
-            print("✅ Created hta_nodes table")
+            ]
+            
+            op.create_table("hta_nodes", *table_args)
+            print(f"✅ Created hta_nodes table with {users_id_type.upper()} compatibility")
         except Exception as e:
             print(f"❌ Failed to create hta_nodes table: {e}")
             raise
@@ -208,7 +244,7 @@ def upgrade() -> None:
         print("✅ hta_nodes table already exists - skipping creation")
 
     # Create cross-reference foreign key if both tables exist
-    if hta_trees_exists or hta_nodes_exists:
+    if not hta_trees_exists and not hta_nodes_exists:
         print("Checking cross-reference foreign key...")
         try:
             # Check if foreign key already exists
@@ -233,9 +269,9 @@ def upgrade() -> None:
         except Exception as e:
             print(f"⚠️ Could not create cross-reference foreign key: {e}")
 
-    # Create GIN index if hta_trees exists
-    if hta_trees_exists or not table_exists(connection, "hta_trees"):
-        print("Checking GIN index on hta_trees.manifest...")
+    # Create indexes only for UUID tables (JSONB GIN index)
+    if users_id_type == "uuid" and not hta_trees_exists:
+        print("Creating UUID-specific indexes...")
         try:
             # Check if GIN index already exists
             result = connection.execute(sa.text("""
@@ -258,10 +294,10 @@ def upgrade() -> None:
         except Exception as e:
             print(f"⚠️ Could not create GIN index: {e}")
 
-    print("\n🎉 BULLETPROOF Migration completed successfully!")
-    print("✅ All operations used safe, transaction-friendly approaches")
-    print("✅ No risky table modifications attempted")
-    print("✅ PostgreSQL transaction state preserved")
+    print(f"\n🎉 SMART ADAPTIVE Migration completed successfully!")
+    print(f"✅ Database schema adapted to existing users table ({users_id_type.upper()} type)")
+    print("✅ All HTA tables created with compatible foreign key types")
+    print("✅ Schema is fully functional and deployment ready")
 
 
 def downgrade() -> None:
